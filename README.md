@@ -132,13 +132,12 @@ Run it:
 uv run python example.py
 ```
 
-### Generating the documentation
+### Previewing the documentation
 
 If added a new service, create a documentation template under api/services for that service.
 
 ```bash
-cd docs
-make html
+uv run mkdocs serve
 ```
 
 ### Code style
