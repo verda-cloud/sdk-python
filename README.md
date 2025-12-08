@@ -60,9 +60,9 @@ This package was originally published under `datacrunch` name, see [MIGRATION.md
   from verda import VerdaClient
   from verda.constants import Actions
 
-  # Get credentials from the environment variables
-  CLIENT_ID = os.environ.get('VERDA_CLIENT_ID')
-  CLIENT_SECRET = os.environ.get('VERDA_CLIENT_SECRET')
+  # Get credentials from environment variables
+  CLIENT_ID = os.environ['VERDA_CLIENT_ID']
+  CLIENT_SECRET = os.environ['VERDA_CLIENT_SECRET']
 
   # Create client
   verda = VerdaClient(CLIENT_ID, CLIENT_SECRET)
@@ -72,7 +72,7 @@ This package was originally published under `datacrunch` name, see [MIGRATION.md
 
   # Create a new instance
   instance = verda.instances.create(instance_type='1V100.6V',
-                                    image='ubuntu-24.04-cuda-12.6-docker',
+                                    image='ubuntu-24.04-cuda-12.8-open-docker',
                                     ssh_key_ids=ssh_keys,
                                     hostname='example',
                                     description='example instance')
