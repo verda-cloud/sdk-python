@@ -2,6 +2,7 @@ import os
 import time
 
 from verda import VerdaClient
+from verda.constants import Actions, InstanceStatus
 from verda.exceptions import APIException
 
 # Get client secret and id from environment variables
@@ -29,28 +30,28 @@ print(instance.id)
 # Try to shutdown instance right away,
 # encounter an error (because it's still provisioning)
 try:
-    verda.instances.action(instance.id, verda.constants.instance_actions.SHUTDOWN)
+    verda.instances.action(instance.id, Actions.SHUTDOWN)
 except APIException as exception:
     print(exception)  # we were too eager...
 
 # Wait until instance is running (check every 30sec), only then shut it down
-while instance.status != verda.constants.instance_status.RUNNING:
+while instance.status != InstanceStatus.RUNNING:
     time.sleep(30)
     instance = verda.instances.get_by_id(instance.id)
 
 # Shutdown!
 try:
-    verda.instances.action(instance.id, verda.constants.instance_actions.SHUTDOWN)
+    verda.instances.action(instance.id, Actions.SHUTDOWN)
 except APIException as exception:
     print(exception)  # no exception this time
 
 # Wait until instance is offline (check every 30sec), only then hibernate
-while instance.status != verda.constants.instance_status.OFFLINE:
+while instance.status != InstanceStatus.OFFLINE:
     time.sleep(30)
     instance = verda.instances.get_by_id(instance.id)
 
 # Hibernate the instance
 try:
-    verda.instances.action(instance.id, verda.constants.instance_actions.HIBERNATE)
+    verda.instances.action(instance.id, Actions.HIBERNATE)
 except APIException as exception:
     print(exception)

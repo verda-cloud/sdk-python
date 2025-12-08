@@ -7,8 +7,8 @@ Simple Create Instance
     from verda import VerdaClient
 
     # Get client secret from environment variable
-    CLIENT_SECRET = os.environ['VERDA_CLIENT_SECRET']
-    CLIENT_ID = 'Ibk5bdxV64lKAWOqYnvSi'  # Replace with your client ID
+    CLIENT_SECRET = os.environ.get('VERDA_CLIENT_SECRET')
+    CLIENT_ID = os.environ.get('VERDA_CLIENT_ID')
 
     # Create datcrunch client
     verda = VerdaClient(CLIENT_ID, CLIENT_SECRET)
