@@ -1,8 +1,8 @@
 Startup Scripts
 ===============
 
-.. autoclass:: verda.startup_scripts.startup_scripts.StartupScriptsService
+.. autoclass:: verda.startup_scripts._startup_scripts.StartupScriptsService
    :members:
 
-.. autoclass:: verda.startup_scripts.startup_scripts.StartupScript
+.. autoclass:: verda.startup_scripts._startup_scripts.StartupScript
    :members:

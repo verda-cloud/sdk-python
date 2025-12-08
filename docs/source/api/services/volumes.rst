@@ -1,8 +1,8 @@
 Volumes
 =======
 
-.. autoclass:: verda.volumes.volumes.VolumesService
+.. autoclass:: verda.volumes._volumes.VolumesService
    :members:
 
-.. autoclass:: verda.volumes.volumes.Volume
+.. autoclass:: verda.volumes._volumes.Volume
    :members:

@@ -1,8 +1,8 @@
 Instances
 =========
 
-.. autoclass:: verda.instances.instances.InstancesService
+.. autoclass:: verda.instances._instances.InstancesService
    :members:
 
-.. autoclass:: verda.instances.instances.Instance
+.. autoclass:: verda.instances._instances.Instance
    :members:
