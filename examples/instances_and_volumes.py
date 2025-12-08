@@ -54,9 +54,7 @@ instance_with_existing_os_volume = verda.instances.create(
 )
 
 # Delete instance AND OS volume (the rest of the volumes would be detached)
-verda.instances.action(
-    instance_id=EXAMPLE_INSTANCE_ID, action=Actions.DELETE
-)
+verda.instances.action(instance_id=EXAMPLE_INSTANCE_ID, action=Actions.DELETE)
 
 # Delete instance WITHOUT deleting the OS volume (will detach all volumes of the instance)
 verda.instances.action(
