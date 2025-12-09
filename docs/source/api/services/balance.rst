@@ -1,8 +1,8 @@
 Balance
 =======
 
-.. autoclass:: verda.balance.balance.BalanceService
+.. autoclass:: verda.balance.BalanceService
    :members:
 
-.. autoclass:: verda.balance.balance.Balance
+.. autoclass:: verda.balance.Balance
    :members:

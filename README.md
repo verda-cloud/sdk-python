@@ -136,8 +136,8 @@ uv run python example.py
 If added a new service, create a documentation template under `api/services` for that service.
 
 ```bash
+uv sync --group docs
 cd docs
-uv pip install -r requirements.txt
 uv run make html
 ```
 

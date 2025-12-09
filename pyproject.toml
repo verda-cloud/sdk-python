@@ -33,6 +33,11 @@ dev = [
     "ruff>=0.14.2",
 ]
 
+docs = [
+    "sphinx>=7.0.0",
+    "recommonmark>=0.7.1",
+]
+
 [project.urls]
 Homepage = "https://github.com/verda-cloud"
 Documentation = "https://datacrunch-python.readthedocs.io/"
