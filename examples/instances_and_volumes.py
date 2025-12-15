@@ -1,6 +1,7 @@
 import os
 
 from verda import VerdaClient
+from verda.constants import Actions, VolumeTypes
 
 # Get client secret and id from environment variables
 CLIENT_ID = os.environ.get('VERDA_CLIENT_ID')
@@ -10,8 +11,8 @@ CLIENT_SECRET = os.environ.get('VERDA_CLIENT_SECRET')
 verda = VerdaClient(CLIENT_ID, CLIENT_SECRET)
 
 # Get some volume type constants
-NVMe = verda.constants.volume_types.NVMe
-HDD = verda.constants.volume_types.HDD
+NVMe = VolumeTypes.NVMe
+HDD = VolumeTypes.HDD
 
 EXISTING_OS_VOLUME_ID = '81e45bf0-5da2-412b-97d7-c20a7564fca0'
 EXAMPLE_VOLUME_ID = '225dde24-ae44-4787-9224-2b9f56f44394'
@@ -53,20 +54,18 @@ instance_with_existing_os_volume = verda.instances.create(
 )
 
 # Delete instance AND OS volume (the rest of the volumes would be detached)
-verda.instances.action(
-    instance_id=EXAMPLE_INSTANCE_ID, action=verda.constants.instance_actions.DELETE
-)
+verda.instances.action(instance_id=EXAMPLE_INSTANCE_ID, action=Actions.DELETE)
 
 # Delete instance WITHOUT deleting the OS volume (will detach all volumes of the instance)
 verda.instances.action(
     instance_id=EXAMPLE_INSTANCE_ID,
-    action=verda.constants.instance_actions.DELETE,
+    action=Actions.DELETE,
     volume_ids=[],
 )
 
 # Delete instance and one of it's volumes (will delete one volume, detach the rest)
 verda.instances.action(
     instance_id=EXAMPLE_INSTANCE_ID,
-    action=verda.constants.instance_actions.DELETE,
+    action=Actions.DELETE,
     volume_ids=[EXAMPLE_VOLUME_ID],
 )

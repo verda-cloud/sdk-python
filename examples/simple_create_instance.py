@@ -2,7 +2,7 @@ import os
 import time
 
 from verda import VerdaClient
-from verda.constants import InstanceStatus, Locations
+from verda.constants import Actions, InstanceStatus, Locations
 
 # Get client secret and id from environment variables
 CLIENT_ID = os.environ.get('VERDA_CLIENT_ID')
@@ -33,4 +33,4 @@ while instance.status != InstanceStatus.RUNNING:
 print(instance)
 
 # Delete instance
-verda.instances.action(instance.id, verda.constants.instance_actions.DELETE)
+verda.instances.action(instance.id, Actions.DELETE)

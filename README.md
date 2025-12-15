@@ -58,9 +58,10 @@ This package was originally published under `datacrunch` name, see [MIGRATION.md
   ```python
   import os
   from verda import VerdaClient
+  from verda.constants import Actions
 
   # Get credentials from environment variables
-  CLIENT_ID = os.environ.get('VERDA_CLIENT_ID')
+  CLIENT_ID = os.environ['VERDA_CLIENT_ID']
   CLIENT_SECRET = os.environ['VERDA_CLIENT_SECRET']
 
   # Create client
@@ -77,7 +78,7 @@ This package was originally published under `datacrunch` name, see [MIGRATION.md
                                     description='example instance')
 
   # Delete instance
-  verda.instances.action(instance.id, verda.constants.instance_actions.DELETE)
+  verda.instances.action(instance.id, Actions.DELETE)
   ```
 
   More examples can be found in the `/examples` folder or in the [documentation](https://datacrunch-python.readthedocs.io/en/latest/).
@@ -122,7 +123,7 @@ CLIENT_SECRET = 'secret'
 CLIENT_ID = 'your-id'
 
 # Create client
-verda = VerdaClient(CLIENT_ID, CLIENT_SECRET, base_url='http://localhost:3001/v1')
+verda = VerdaClient(CLIENT_ID, CLIENT_SECRET)
 ```
 
 Run it:
