@@ -56,6 +56,22 @@ class VolumeStatus:
         return
 
 
+class ClusterStatus:
+    """Cluster status."""
+
+    ORDERED = 'ordered'
+    CREATING = 'creating'
+    RUNNING = 'running'
+    SCALING = 'scaling'
+    UPDATING = 'updating'
+    DELETING = 'deleting'
+    DELETED = 'deleted'
+    ERROR = 'error'
+
+    def __init__(self):
+        return
+
+
 class VolumeTypes:
     """Storage volume types."""
 
@@ -109,6 +125,9 @@ class Constants:
 
         self.volume_status: VolumeStatus = VolumeStatus()
         """Possible volume statuses"""
+
+        self.cluster_status: ClusterStatus = ClusterStatus()
+        """Possible cluster statuses"""
 
         self.volume_types: VolumeTypes = VolumeTypes()
         """Available volume types"""
