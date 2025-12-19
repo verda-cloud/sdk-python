@@ -256,5 +256,5 @@ class InstancesService:
             List of available instance types and their details.
         """
         is_spot = str(is_spot).lower() if is_spot is not None else None
-        query_params = {'isSpot': is_spot, 'locationCode': location_code}
+        query_params = {'isSpot': is_spot, 'location_code': location_code}
         return self._http_client.get('/instance-availability', params=query_params).json()
