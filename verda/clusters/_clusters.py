@@ -5,7 +5,7 @@ from typing import Literal
 
 from dataclasses_json import dataclass_json
 
-from verda.constants import Locations
+from verda.constants import Actions, Locations
 
 CLUSTERS_ENDPOINT = '/clusters'
 
@@ -16,24 +16,20 @@ ClusterStatus = Literal[
 
 @dataclass_json
 @dataclass
-class ClusterNode:
-    """Represents a node in a cluster.
+class ClusterWorkerNode:
+    """Represents a worker node in a cluster.
 
     Attributes:
         id: Unique identifier for the node (instance ID).
-        instance_type: Type of the instance for this node.
         status: Current status of the node.
         hostname: Network hostname of the node.
-        ip: IP address of the node.
-        created_at: Timestamp of node creation.
+        private_ip: Private IP address of the node.
     """
 
     id: str
-    instance_type: str
     status: str
     hostname: str
-    ip: str | None = None
-    created_at: str | None = None
+    private_ip: str
 
 
 @dataclass_json
@@ -43,35 +39,32 @@ class Cluster:
 
     Attributes:
         id: Unique identifier for the cluster.
-        name: Human-readable name of the cluster.
+        hostname: Human-readable hostname of the cluster.
         description: Description of the cluster.
         status: Current operational status of the cluster.
         created_at: Timestamp of cluster creation.
         location: Datacenter location code (default: Locations.FIN_03).
-        instance_type: Type of instances used for cluster nodes.
-        node_count: Number of nodes in the cluster.
-        nodes: List of nodes in the cluster.
+        cluster_type: Type of instances used for cluster nodes.
+        worker_nodes: List of nodes in the cluster.
         ssh_key_ids: List of SSH key IDs associated with the cluster nodes.
         image: Image ID or type used for cluster nodes.
         startup_script_id: ID of the startup script to run on nodes.
-        master_ip: IP address of the cluster master/coordinator node.
-        endpoint: Cluster access endpoint.
+        public_ip: IP address of the jumphost.
     """
 
     id: str
-    name: str
+    hostname: str
     description: str
     status: str
     created_at: str
     location: str
-    instance_type: str
+    cluster_type: str
     node_count: int
-    nodes: list[ClusterNode]
+    worker_nodes: list[ClusterWorkerNode]
     ssh_key_ids: list[str]
     image: str | None = None
     startup_script_id: str | None = None
-    master_ip: str | None = None
-    endpoint: str | None = None
+    ip: str | None = None
 
 
 class ClustersService:
@@ -120,16 +113,17 @@ class ClustersService:
 
     def create(
         self,
-        name: str,
-        instance_type: str,
-        node_count: int,
+        hostname: str,
+        cluster_type: str,
         image: str,
         description: str,
         ssh_key_ids: list = [],
         location: str = Locations.FIN_03,
         startup_script_id: str | None = None,
+        shared_volume_name: str | None = None,
+        shared_volume_size: int | None = None,
         *,
-        max_wait_time: float = 300,
+        max_wait_time: float = 900,
         initial_interval: float = 1.0,
         max_interval: float = 10,
         backoff_coefficient: float = 2.0,
@@ -138,14 +132,15 @@ class ClustersService:
 
         Args:
             name: Name for the cluster.
-            instance_type: Type of instances to use for cluster nodes (e.g., '8V100.48V').
-            node_count: Number of nodes to create in the cluster.
+            cluster_type: Cluster type.
             image: Image type or ID for cluster nodes.
             description: Human-readable description of the cluster.
             ssh_key_ids: List of SSH key IDs to associate with cluster nodes.
             location: Datacenter location code (default: Locations.FIN_03).
             startup_script_id: Optional ID of startup script to run on nodes.
-            max_wait_time: Maximum total wait for the cluster to start creating, in seconds (default: 300)
+            shared_volume_name: Optional name for the shared volume.
+            shared_volume_size: Optional size for the shared volume, in GB, default to 30TB.
+            max_wait_time: Maximum total wait for the cluster to start creating, in seconds (default: 900)
             initial_interval: Initial interval, in seconds (default: 1.0)
             max_interval: The longest single delay allowed between retries, in seconds (default: 10)
             backoff_coefficient: Coefficient to calculate the next retry interval (default 2.0)
@@ -158,16 +153,21 @@ class ClustersService:
             TimeoutError: If cluster does not start creating within max_wait_time.
         """
         payload = {
-            'name': name,
-            'instance_type': instance_type,
-            'node_count': node_count,
+            'hostname': hostname,
+            'cluster_type': cluster_type,
             'image': image,
             'description': description,
             'ssh_key_ids': ssh_key_ids,
+            'contract': 'PAY_AS_YOU_GO',
             'location_code': location,
             'startup_script_id': startup_script_id,
+            'shared_volume': {
+                'name': shared_volume_name if shared_volume_name else hostname + '-shared-volume',
+                'size': shared_volume_size if shared_volume_size else 30000,
+            },
         }
-        id = self._http_client.post(CLUSTERS_ENDPOINT, json=payload).text
+        response = self._http_client.post(CLUSTERS_ENDPOINT, json=payload).json()
+        id = response['id']
 
         # Wait for cluster to enter creating state with timeout
         deadline = time.monotonic() + max_wait_time
@@ -185,50 +185,54 @@ class ClustersService:
             interval = min(initial_interval * backoff_coefficient**i, max_interval, deadline - now)
             time.sleep(interval)
 
-    def delete(self, id: str) -> None:
-        """Deletes a cluster and all its nodes.
+    def action(self, id_list: list[str] | str, action: str) -> None:
+        """Performs an action on one or more instances.
 
         Args:
-            id: Unique identifier of the cluster to delete.
+            id_list: Single instance ID or list of instance IDs to act upon.
+            action: Action to perform on the clusters. Only `delete` is supported.
 
         Raises:
-            HTTPError: If the deletion fails or other API error occurs.
+            HTTPError: If the action fails or other API error occurs.
         """
-        self._http_client.delete(CLUSTERS_ENDPOINT + f'/{id}')
+        if type(id_list) is str:
+            id_list = [id_list]
+
+        if action == Actions.DELETE:
+            payload = {'id': id_list, 'action': 'discontinue'}
+        else:
+            raise ValueError(f'Invalid action: {action}. Only DELETE is supported.')
+
+        self._http_client.put(CLUSTERS_ENDPOINT, json=payload)
         return
 
-    def scale(
+    def is_available(
         self,
-        id: str,
-        node_count: int,
-    ) -> Cluster:
-        """Scales a cluster to the specified number of nodes.
+        cluster_type: str,
+        location_code: str | None = None,
+    ) -> bool:
+        """Checks if a specific instance type is available for deployment.
 
         Args:
-            id: Unique identifier of the cluster to scale.
-            node_count: Target number of nodes for the cluster.
+            cluster_type: Type of instance to check availability for.
+            location_code: Optional datacenter location code.
 
         Returns:
-            Updated cluster object.
-
-        Raises:
-            HTTPError: If the scaling fails or other API error occurs.
+            True if the instance type is available, False otherwise.
         """
-        payload = {'node_count': node_count}
-        self._http_client.put(CLUSTERS_ENDPOINT + f'/{id}/scale', json=payload)
-        return self.get_by_id(id)
+        is_spot = str(is_spot).lower()
+        query_params = {'location_code': location_code}
+        url = f'/cluster-availability/{cluster_type}'
+        return self._http_client.get(url, query_params).json()
 
-    def get_nodes(self, id: str) -> list[ClusterNode]:
-        """Retrieves all nodes in a cluster.
+    def get_availabilities(self, location_code: str | None = None) -> list[dict]:
+        """Retrieves a list of available cluster types across locations.
 
         Args:
-            id: Unique identifier of the cluster.
+            location_code: Optional datacenter location code to filter by.
 
         Returns:
-            List of nodes in the cluster.
-
-        Raises:
-            HTTPError: If the cluster is not found or other API error occurs.
+            List of available cluster types and their details.
         """
-        nodes_dict = self._http_client.get(CLUSTERS_ENDPOINT + f'/{id}/nodes').json()
-        return [ClusterNode.from_dict(node_dict, infer_missing=True) for node_dict in nodes_dict]
+        query_params = {'location_code': location_code}
+        return self._http_client.get('/cluster-availability', params=query_params).json()
