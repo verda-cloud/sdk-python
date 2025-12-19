@@ -9,9 +9,6 @@ from verda.constants import Actions, Locations
 
 CLUSTERS_ENDPOINT = '/clusters'
 
-ClusterStatus = Literal[
-    'creating', 'running', 'scaling', 'updating', 'deleting', 'deleted', 'error'
-]
 
 
 @dataclass_json
@@ -131,7 +128,7 @@ class ClustersService:
         """Creates and deploys a new compute cluster.
 
         Args:
-            name: Name for the cluster.
+            hostname: Name for the cluster.
             cluster_type: Cluster type.
             image: Image type or ID for cluster nodes.
             description: Human-readable description of the cluster.
@@ -220,7 +217,6 @@ class ClustersService:
         Returns:
             True if the instance type is available, False otherwise.
         """
-        is_spot = str(is_spot).lower()
         query_params = {'location_code': location_code}
         url = f'/cluster-availability/{cluster_type}'
         return self._http_client.get(url, query_params).json()

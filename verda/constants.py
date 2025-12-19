@@ -60,12 +60,9 @@ class ClusterStatus:
     """Cluster status."""
 
     ORDERED = 'ordered'
-    CREATING = 'creating'
+    PROVISIONING = 'provisioning'
     RUNNING = 'running'
-    SCALING = 'scaling'
-    UPDATING = 'updating'
-    DELETING = 'deleting'
-    DELETED = 'deleted'
+    DISCONTINUED = 'discontinued'
     ERROR = 'error'
 
     def __init__(self):
