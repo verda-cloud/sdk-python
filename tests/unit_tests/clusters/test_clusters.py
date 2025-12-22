@@ -1,7 +1,7 @@
 import pytest
 import responses  # https://github.com/getsentry/responses
 
-from verda.clusters import Cluster, ClusterWorkerNode, ClustersService
+from verda.clusters import Cluster, ClustersService, ClusterWorkerNode
 from verda.constants import ErrorCodes, Locations
 from verda.exceptions import APIException
 
@@ -95,7 +95,7 @@ class TestClustersService:
     def test_create_cluster_successful(self, clusters_service, endpoint):
         # arrange - add response mock
         # create cluster
-        responses.add(responses.POST, endpoint, body=CLUSTER_ID, status=200)
+        responses.add(responses.POST, endpoint, json={'id': CLUSTER_ID}, status=200)
         # get cluster by id
         url = endpoint + '/' + CLUSTER_ID
         responses.add(responses.GET, url, json=CLUSTER_PAYLOAD[0], status=200)
@@ -117,7 +117,7 @@ class TestClustersService:
         assert cluster.description == CLUSTER_DESCRIPTION
         assert cluster.status == CLUSTER_STATUS
         assert cluster.cluster_type == CLUSTER_CLUSTER_TYPE
-        assert cluster.node_count == CLUSTER_NODE_COUNT
+        assert len(cluster.worker_nodes) == CLUSTER_NODE_COUNT
         assert cluster.ssh_key_ids == [SSH_KEY_ID]
         assert cluster.location == CLUSTER_LOCATION
         assert cluster.image == CLUSTER_IMAGE
@@ -136,11 +136,12 @@ class TestClustersService:
         # act
         with pytest.raises(APIException) as excinfo:
             clusters_service.create(
-                name=CLUSTER_HOSTNAME,
+                hostname=CLUSTER_HOSTNAME,
                 cluster_type=CLUSTER_CLUSTER_TYPE,
-                node_count=CLUSTER_NODE_COUNT,
                 image=CLUSTER_IMAGE,
                 description=CLUSTER_DESCRIPTION,
+                ssh_key_ids=[SSH_KEY_ID],
+                location=CLUSTER_LOCATION,
             )
 
         # assert
@@ -150,11 +151,11 @@ class TestClustersService:
 
     def test_delete_cluster_successful(self, clusters_service, endpoint):
         # arrange - add response mock
-        url = endpoint + '/' + CLUSTER_ID
-        responses.add(responses.DELETE, url, status=202)
+        url = endpoint
+        responses.add(responses.PUT, url, status=202)
 
         # act
-        result = clusters_service.action(CLUSTER_ID, 'delete')
+        result = clusters_service.delete(CLUSTER_ID)
 
         # assert
         assert result is None
@@ -162,10 +163,9 @@ class TestClustersService:
 
     def test_delete_cluster_failed(self, clusters_service, endpoint):
         # arrange - add response mock
-        url = endpoint + '/invalid_id'
         responses.add(
-            responses.DELETE,
-            url,
+            responses.PUT,
+            endpoint,
             json={'code': INVALID_REQUEST, 'message': INVALID_REQUEST_MESSAGE},
             status=400,
         )
@@ -177,5 +177,4 @@ class TestClustersService:
         # assert
         assert excinfo.value.code == INVALID_REQUEST
         assert excinfo.value.message == INVALID_REQUEST_MESSAGE
-        assert responses.assert_call_count(url, 1) is True
-
+        assert responses.assert_call_count(endpoint, 1) is True

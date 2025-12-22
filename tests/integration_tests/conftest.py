@@ -9,7 +9,7 @@ from verda import VerdaClient
 Make sure to run the server and the account has enough balance before running the tests
 """
 
-BASE_URL = os.getenv('VERDA_BASE_URL', 'https://api.verda.com/v1')
+BASE_URL = 'http://localhost:3010/v1'
 
 # Load env variables, make sure there's an env file with valid client credentials
 load_dotenv()

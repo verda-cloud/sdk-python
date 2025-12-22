@@ -10,7 +10,6 @@ from verda.constants import Actions, Locations
 CLUSTERS_ENDPOINT = '/clusters'
 
 
-
 @dataclass_json
 @dataclass
 class ClusterWorkerNode:
@@ -201,6 +200,15 @@ class ClustersService:
             raise ValueError(f'Invalid action: {action}. Only DELETE is supported.')
 
         self._http_client.put(CLUSTERS_ENDPOINT, json=payload)
+        return
+
+    def delete(self, cluster_id: str) -> None:
+        """Deletes a cluster.
+
+        Args:
+            cluster_id: ID of the cluster to delete.
+        """
+        self.action(cluster_id, 'delete')
         return
 
     def is_available(
