@@ -28,11 +28,20 @@ def create_cluster_example():
     # Get SSH keys
     ssh_keys = [key.id for key in verda.ssh_keys.get()]
 
-    # Create a cluster with 3 nodes
+    # Check if cluster type is available
+    if not verda.clusters.is_available('16B200', Locations.FIN_03):
+        raise ValueError('Cluster type 16B200 is not available in FIN_03')
+
+    # Get available images for cluster type
+    images = verda.clusters.get_cluster_images('16B200')
+    if 'ubuntu-22.04-cuda-12.9-cluster' not in images:
+        raise ValueError('Ubuntu 22.04 CUDA 12.9 cluster image is not supported for 16B200')
+
+    # Create a 16B200 cluster
     cluster = verda.clusters.create(
         hostname='my-compute-cluster',
-        cluster_type='16H200',
-        image='ubuntu-22.04-cuda-12.4-cluster',
+        cluster_type='16B200',
+        image='ubuntu-22.04-cuda-12.9-cluster',
         description='Example compute cluster for distributed training',
         ssh_key_ids=ssh_keys,
         location=Locations.FIN_03,
@@ -40,11 +49,10 @@ def create_cluster_example():
         shared_volume_size=30000,
     )
 
-    print(f'Created cluster: {cluster.id}')
+    print(f'Creating cluster: {cluster.id}')
     print(f'Cluster hostname: {cluster.hostname}')
     print(f'Cluster status: {cluster.status}')
     print(f'Cluster cluster_type: {cluster.cluster_type}')
-    print(f'Cluster worker_nodes: {cluster.worker_nodes}')
     print(f'Location: {cluster.location}')
 
     return cluster

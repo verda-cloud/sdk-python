@@ -1,13 +1,16 @@
 import itertools
 import time
 from dataclasses import dataclass
-from typing import Literal
 
 from dataclasses_json import dataclass_json
 
-from verda.constants import Actions, Locations
+from verda.constants import Actions, ClusterStatus, ErrorCodes, Locations
+from verda.exceptions import APIException
 
 CLUSTERS_ENDPOINT = '/clusters'
+
+# Default shared volume size is 30TB
+DEFAULT_SHARED_VOLUME_SIZE = 30000
 
 
 @dataclass_json
@@ -16,7 +19,7 @@ class ClusterWorkerNode:
     """Represents a worker node in a cluster.
 
     Attributes:
-        id: Unique identifier for the node (instance ID).
+        id: Unique identifier for the node.
         status: Current status of the node.
         hostname: Network hostname of the node.
         private_ip: Private IP address of the node.
@@ -40,7 +43,7 @@ class Cluster:
         status: Current operational status of the cluster.
         created_at: Timestamp of cluster creation.
         location: Datacenter location code (default: Locations.FIN_03).
-        cluster_type: Type of instances used for cluster nodes.
+        cluster_type: Type of the cluster.
         worker_nodes: List of nodes in the cluster.
         ssh_key_ids: List of SSH key IDs associated with the cluster nodes.
         image: Image ID or type used for cluster nodes.
@@ -65,7 +68,7 @@ class Cluster:
 class ClustersService:
     """Service for managing compute clusters through the API.
 
-    This service provides methods to create, retrieve, scale, and manage compute clusters.
+    This service provides methods to create, retrieve, and manage compute clusters.
     """
 
     def __init__(self, http_client) -> None:
@@ -118,6 +121,7 @@ class ClustersService:
         shared_volume_name: str | None = None,
         shared_volume_size: int | None = None,
         *,
+        wait_for_status: str | None = ClusterStatus.PROVISIONING,
         max_wait_time: float = 900,
         initial_interval: float = 1.0,
         max_interval: float = 10,
@@ -135,6 +139,7 @@ class ClustersService:
             startup_script_id: Optional ID of startup script to run on nodes.
             shared_volume_name: Optional name for the shared volume.
             shared_volume_size: Optional size for the shared volume, in GB, default to 30TB.
+            wait_for_status: Status to wait for the cluster to reach, default to PROVISIONING. If None, no wait is performed.
             max_wait_time: Maximum total wait for the cluster to start creating, in seconds (default: 900)
             initial_interval: Initial interval, in seconds (default: 1.0)
             max_interval: The longest single delay allowed between retries, in seconds (default: 10)
@@ -158,18 +163,27 @@ class ClustersService:
             'startup_script_id': startup_script_id,
             'shared_volume': {
                 'name': shared_volume_name if shared_volume_name else hostname + '-shared-volume',
-                'size': shared_volume_size if shared_volume_size else 30000,
+                'size': shared_volume_size if shared_volume_size else DEFAULT_SHARED_VOLUME_SIZE,
             },
         }
         response = self._http_client.post(CLUSTERS_ENDPOINT, json=payload).json()
         id = response['id']
 
+        if not wait_for_status:
+            return self.get_by_id(id)
+
         # Wait for cluster to enter creating state with timeout
         deadline = time.monotonic() + max_wait_time
         for i in itertools.count():
             cluster = self.get_by_id(id)
-            if cluster.status != 'ordered':
+            if cluster.status == wait_for_status:
                 return cluster
+
+            if cluster.status == ClusterStatus.ERROR:
+                raise APIException(ErrorCodes.SERVER_ERROR, f'Cluster {id} entered error state')
+
+            if cluster.status == ClusterStatus.DISCONTINUED:
+                raise APIException(ErrorCodes.SERVER_ERROR, f'Cluster {id} was discontinued')
 
             now = time.monotonic()
             if now >= deadline:
@@ -181,10 +195,10 @@ class ClustersService:
             time.sleep(interval)
 
     def action(self, id_list: list[str] | str, action: str) -> None:
-        """Performs an action on one or more instances.
+        """Performs an action on one or more clusters.
 
         Args:
-            id_list: Single instance ID or list of instance IDs to act upon.
+            id_list: Single cluster ID or list of cluster IDs to act upon.
             action: Action to perform on the clusters. Only `delete` is supported.
 
         Raises:
@@ -215,20 +229,21 @@ class ClustersService:
         cluster_type: str,
         location_code: str | None = None,
     ) -> bool:
-        """Checks if a specific instance type is available for deployment.
+        """Checks if a specific cluster type is available for deployment.
 
         Args:
-            cluster_type: Type of instance to check availability for.
+            cluster_type: Type of cluster to check availability for.
             location_code: Optional datacenter location code.
 
         Returns:
-            True if the instance type is available, False otherwise.
+            True if the cluster type is available, False otherwise.
         """
         query_params = {'location_code': location_code}
         url = f'/cluster-availability/{cluster_type}'
-        return self._http_client.get(url, query_params).json()
+        response = self._http_client.get(url, query_params).text
+        return response == 'true'
 
-    def get_availabilities(self, location_code: str | None = None) -> list[dict]:
+    def get_availabilities(self, location_code: str | None = None) -> list[str]:
         """Retrieves a list of available cluster types across locations.
 
         Args:
@@ -238,4 +253,33 @@ class ClustersService:
             List of available cluster types and their details.
         """
         query_params = {'location_code': location_code}
-        return self._http_client.get('/cluster-availability', params=query_params).json()
+        response = self._http_client.get('/cluster-availability', params=query_params).json()
+        availabilities = response[0]['availabilities']
+        return availabilities
+
+    def get_availability(self, cluster_type: str, location_code: str | None = None) -> list[dict]:
+        """Checks if a specific cluster type is available for deployment.
+
+        Args:
+            cluster_type: Type of cluster to check availability for.
+            location_code: Optional datacenter location code.
+
+        Returns:
+            True if the cluster type is available, False otherwise.
+        """
+
+    def get_cluster_images(
+        self,
+        cluster_type: str | None = None,
+    ) -> list[str]:
+        """Retrieves a list of available images for a given cluster type (optional).
+
+        Args:
+            cluster_type: Type of cluster to get images for.
+
+        Returns:
+            List of available images for the given cluster type.
+        """
+        query_params = {'instance_type': cluster_type}
+        images = self._http_client.get('/images/cluster', params=query_params).json()
+        return [image['image_type'] for image in images]
