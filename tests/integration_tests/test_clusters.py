@@ -19,9 +19,9 @@ class TestClusters:
         cluster = verda_client.clusters.create(
             hostname='test-instance',
             location=Locations.FIN_03,
-            cluster_type='16H200',
+            cluster_type='16B200',
             description='test instance',
-            image='ubuntu-22.04-cuda-12.4-cluster',
+            image='ubuntu-22.04-cuda-12.8-cluster',
             ssh_key_ids=[ssh_key.id],
         )
 
@@ -32,9 +32,11 @@ class TestClusters:
             or cluster.status == verda_client.constants.instance_status.RUNNING
         )
 
-        assert cluster.worker_nodes is not None
-        assert len(cluster.worker_nodes) == 2
-        assert cluster.ip is not None
+        # If still provisioning, we don't have worker nodes yet and ip is not available
+        if cluster.status != verda_client.constants.instance_status.PROVISIONING:
+            assert cluster.worker_nodes is not None
+            assert len(cluster.worker_nodes) == 2
+            assert cluster.ip is not None
 
         print(cluster)
 

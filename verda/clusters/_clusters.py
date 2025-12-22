@@ -55,7 +55,6 @@ class Cluster:
     created_at: str
     location: str
     cluster_type: str
-    node_count: int
     worker_nodes: list[ClusterWorkerNode]
     ssh_key_ids: list[str]
     image: str | None = None
