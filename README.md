@@ -81,7 +81,7 @@ This package was originally published under `datacrunch` name, see [MIGRATION.md
   verda.instances.action(instance.id, Actions.DELETE)
   ```
 
-  More examples can be found in the `/examples` folder or in the [documentation](https://datacrunch-python.readthedocs.io/en/latest/).
+  More examples can be found in the [/examples](./examples) folder or in the [documentation](https://datacrunch-python.readthedocs.io/en/latest/).
 
 ## Development
 
