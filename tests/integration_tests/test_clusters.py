@@ -62,11 +62,8 @@ class TestClusters:
             assert len(cluster.worker_nodes) == 2
             assert cluster.ip is not None
 
-        print(f'Creating cluster: {cluster.id}')
-        print(f'Cluster hostname: {cluster.hostname}')
-        print(f'Cluster status: {cluster.status}')
-        print(f'Cluster cluster_type: {cluster.cluster_type}')
-        print(f'Location: {cluster.location}')
-
-        # delete instance
-        # verda_client.clusters.action(cluster.id, 'delete')
+        # Now we need to wait for RUNNING status to connect to the jumphost (public IP is available)
+        # After that, we can connect to the jumphost and run commands on the cluster nodes:
+        #
+        # ssh -i ssh_key.pem root@<public_ip>
+        #

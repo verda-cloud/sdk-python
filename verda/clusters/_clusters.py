@@ -204,13 +204,13 @@ class ClustersService:
         Raises:
             HTTPError: If the action fails or other API error occurs.
         """
-        if type(id_list) is str:
-            id_list = [id_list]
-
-        if action == Actions.DELETE:
-            payload = {'id': id_list, 'action': 'discontinue'}
-        else:
+        if action != Actions.DELETE:
             raise ValueError(f'Invalid action: {action}. Only DELETE is supported.')
+
+        if type(id_list) is str:
+            payload = {'actions': [{'id': id_list, 'action': 'discontinue'}]}
+        else:
+            payload = {'actions': [{'id': id, 'action': action} for id in id_list]}
 
         self._http_client.put(CLUSTERS_ENDPOINT, json=payload)
         return

@@ -6,11 +6,11 @@ This example shows how to:
 - List all clusters
 - Get a specific cluster by ID
 - Get cluster nodes
-- Scale a cluster
 - Delete a cluster
 """
 
 import os
+import time
 
 from verda import VerdaClient
 from verda.constants import Actions, Locations
@@ -18,9 +18,10 @@ from verda.constants import Actions, Locations
 # Get credentials from environment variables
 CLIENT_ID = os.environ.get('VERDA_CLIENT_ID')
 CLIENT_SECRET = os.environ.get('VERDA_CLIENT_SECRET')
+BASE_URL = os.environ.get('VERDA_BASE_URL', 'https://api.verda.com/v1')
 
 # Create client
-verda = VerdaClient(CLIENT_ID, CLIENT_SECRET)
+verda = VerdaClient(CLIENT_ID, CLIENT_SECRET, base_url=BASE_URL)
 
 
 def create_cluster_example():
@@ -34,19 +35,20 @@ def create_cluster_example():
 
     # Get available images for cluster type
     images = verda.clusters.get_cluster_images('16B200')
-    if 'ubuntu-22.04-cuda-12.9-cluster' not in images:
+    if 'ubuntu-22.04-cuda-12.4-cluster' not in images:
         raise ValueError('Ubuntu 22.04 CUDA 12.9 cluster image is not supported for 16B200')
 
     # Create a 16B200 cluster
     cluster = verda.clusters.create(
         hostname='my-compute-cluster',
         cluster_type='16B200',
-        image='ubuntu-22.04-cuda-12.9-cluster',
+        image='ubuntu-22.04-cuda-12.4-cluster',
         description='Example compute cluster for distributed training',
         ssh_key_ids=ssh_keys,
         location=Locations.FIN_03,
         shared_volume_name='my-shared-volume',
         shared_volume_size=30000,
+        wait_for_status=None,
     )
 
     print(f'Creating cluster: {cluster.id}')
@@ -54,6 +56,15 @@ def create_cluster_example():
     print(f'Cluster status: {cluster.status}')
     print(f'Cluster cluster_type: {cluster.cluster_type}')
     print(f'Location: {cluster.location}')
+
+    # Wait for cluster to enter RUNNING status
+    while cluster.status != verda.constants.cluster_status.RUNNING:
+        time.sleep(2)
+        print(f'Waiting for cluster to enter RUNNING status... (status: {cluster.status})')
+        cluster = verda.clusters.get_by_id(cluster.id)
+
+    print(f'Public IP: {cluster.ip}')
+    print('Cluster is now running and ready to use!')
 
     return cluster
 
