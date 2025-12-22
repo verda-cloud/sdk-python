@@ -35,14 +35,14 @@ def create_cluster_example():
 
     # Get available images for cluster type
     images = verda.clusters.get_cluster_images('16B200')
-    if 'ubuntu-22.04-cuda-12.4-cluster' not in images:
+    if 'ubuntu-22.04-cuda-12.9-cluster' not in images:
         raise ValueError('Ubuntu 22.04 CUDA 12.9 cluster image is not supported for 16B200')
 
     # Create a 16B200 cluster
     cluster = verda.clusters.create(
         hostname='my-compute-cluster',
         cluster_type='16B200',
-        image='ubuntu-22.04-cuda-12.4-cluster',
+        image='ubuntu-22.04-cuda-12.9-cluster',
         description='Example compute cluster for distributed training',
         ssh_key_ids=ssh_keys,
         location=Locations.FIN_03,
