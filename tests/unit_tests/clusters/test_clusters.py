@@ -108,6 +108,7 @@ class TestClustersService:
             description=CLUSTER_DESCRIPTION,
             ssh_key_ids=[SSH_KEY_ID],
             location=CLUSTER_LOCATION,
+            wait_for_status=CLUSTER_STATUS,
         )
 
         # assert
