@@ -59,7 +59,7 @@ def create_cluster_example():
 
     # Wait for cluster to enter RUNNING status
     while cluster.status != verda.constants.cluster_status.RUNNING:
-        time.sleep(2)
+        time.sleep(30)
         print(f'Waiting for cluster to enter RUNNING status... (status: {cluster.status})')
         cluster = verda.clusters.get_by_id(cluster.id)
 
