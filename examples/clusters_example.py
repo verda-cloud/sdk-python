@@ -13,7 +13,7 @@ import os
 import time
 
 from verda import VerdaClient
-from verda.constants import Actions, Locations
+from verda.constants import Actions, Locations, ClusterStatus
 
 # Get credentials from environment variables
 CLIENT_ID = os.environ.get('VERDA_CLIENT_ID')
