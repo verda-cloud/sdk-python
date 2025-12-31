@@ -509,7 +509,7 @@ wheels = [
 
 [[package]]
 name = "verda"
-version = "1.17.4"
+version = "1.18.0"
 source = { editable = "." }
 dependencies = [
     { name = "dataclasses-json" },
