@@ -81,7 +81,7 @@ class VerdaClient:
         """Containers service. Deploy, manage, and monitor container deployments"""
 
         self.clusters: ClustersService = ClustersService(self._http_client)
-        """Clusters service. Create, manage, and scale compute clusters"""
+        """Clusters service. Create and manage compute clusters"""
 
 
 __all__ = ['VerdaClient']
