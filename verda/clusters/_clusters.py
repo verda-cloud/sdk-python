@@ -217,7 +217,6 @@ class ClustersService:
             payload = {'actions': [{'id': id, 'action': action} for id in id_list]}
 
         self._http_client.put(CLUSTERS_ENDPOINT, json=payload)
-        return
 
     def delete(self, cluster_id: str) -> None:
         """Deletes a cluster.
@@ -226,7 +225,6 @@ class ClustersService:
             cluster_id: ID of the cluster to delete.
         """
         self.action(cluster_id, 'delete')
-        return
 
     def is_available(
         self,
