@@ -152,15 +152,14 @@ class TestClustersService:
 
     def test_delete_cluster_successful(self, clusters_service, endpoint):
         # arrange - add response mock
-        url = endpoint
-        responses.add(responses.PUT, url, status=202)
+        responses.add(responses.PUT, endpoint, status=202)
 
         # act
         result = clusters_service.delete(CLUSTER_ID)
 
         # assert
         assert result is None
-        assert responses.assert_call_count(url, 1) is True
+        assert responses.assert_call_count(endpoint, 1) is True
 
     def test_delete_cluster_failed(self, clusters_service, endpoint):
         # arrange - add response mock
