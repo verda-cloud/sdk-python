@@ -208,8 +208,11 @@ class ClustersService:
         if action != Actions.DELETE:
             raise ValueError(f'Invalid action: {action}. Only DELETE is supported.')
 
+        # TODO(shamrin) change public API to support `delete`
+        action = 'discontinue'
+
         if isinstance(id_list, str):
-            payload = {'actions': [{'id': id_list, 'action': 'discontinue'}]}
+            payload = {'actions': [{'id': id_list, 'action': action}]}
         else:
             payload = {'actions': [{'id': id, 'action': action} for id in id_list]}
 
