@@ -117,21 +117,17 @@ def main():
     """Run all cluster examples."""
     print('=== Clusters API Example ===\n')
 
-    # Create a new cluster
-    print('1. Creating a new cluster...')
+    print('Creating a new cluster...')
     cluster = create_cluster_example()
     cluster_id = cluster.id
 
-    # List all clusters
-    print('\n2. Listing all clusters...')
+    print('\nListing all clusters...')
     list_clusters_example()
 
-    # Get cluster by ID
-    print('\n3. Getting cluster details...')
+    print('\nGetting cluster details...')
     get_cluster_by_id_example(cluster_id)
 
-    # Delete the cluster
-    print('\n6. Deleting the cluster...')
+    print('\nDeleting the cluster...')
     delete_cluster_example(cluster_id)
 
     print('\n=== Example completed successfully ===')
