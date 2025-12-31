@@ -261,17 +261,6 @@ class ClustersService:
         availabilities = response[0]['availabilities']
         return availabilities
 
-    def get_availability(self, cluster_type: str, location_code: str | None = None) -> list[dict]:
-        """Checks if a specific cluster type is available for deployment.
-
-        Args:
-            cluster_type: Type of cluster to check availability for.
-            location_code: Optional datacenter location code.
-
-        Returns:
-            True if the cluster type is available, False otherwise.
-        """
-
     def get_cluster_images(
         self,
         cluster_type: str | None = None,
