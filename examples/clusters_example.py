@@ -81,7 +81,7 @@ def list_clusters_example():
         )
 
     # Get clusters with specific status
-    running_clusters = verda.clusters.get(status=verda.constants.cluster_status.RUNNING)
+    running_clusters = verda.clusters.get(status=ClusterStatus.RUNNING)
     print(f'\nFound {len(running_clusters)} running cluster(s)')
 
     return clusters
