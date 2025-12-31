@@ -173,6 +173,7 @@ class ClustersService:
             return self.get_by_id(id)
 
         # Wait for cluster to enter creating state with timeout
+        # TODO(shamrin) extract backoff logic, _instances module has the same code
         deadline = time.monotonic() + max_wait_time
         for i in itertools.count():
             cluster = self.get_by_id(id)
