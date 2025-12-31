@@ -171,8 +171,8 @@ class InstancesService:
             'description': description,
             'location_code': location,
             'os_volume': os_volume,
-            'volumes': volumes if volumes is not None else [],
-            'existing_volumes': existing_volumes if existing_volumes is not None else [],
+            'volumes': volumes or [],
+            'existing_volumes': existing_volumes or [],
             'is_spot': is_spot,
             'coupon': coupon,
         }
