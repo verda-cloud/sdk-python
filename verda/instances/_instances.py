@@ -183,6 +183,7 @@ class InstancesService:
         id = self._http_client.post(INSTANCES_ENDPOINT, json=payload).text
 
         # Wait for instance to enter provisioning state with timeout
+        # TODO(shamrin) extract backoff logic, _clusters module has the same code
         deadline = time.monotonic() + max_wait_time
         for i in itertools.count():
             instance = self.get_by_id(id)
