@@ -208,7 +208,7 @@ class ClustersService:
         if action != Actions.DELETE:
             raise ValueError(f'Invalid action: {action}. Only DELETE is supported.')
 
-        if type(id_list) is str:
+        if isinstance(id_list, str):
             payload = {'actions': [{'id': id_list, 'action': 'discontinue'}]}
         else:
             payload = {'actions': [{'id': id, 'action': action} for id in id_list]}
