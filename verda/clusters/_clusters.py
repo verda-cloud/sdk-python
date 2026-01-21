@@ -39,6 +39,8 @@ class SharedVolume:
     Attributes:
         id: Unique identifier for the volume.
         name: Name of the volume.
+        size_in_gigabytes: Size of the volume in gigabytes.
+        mount_point: Mount point of the volume.
     """
 
     id: str
