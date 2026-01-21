@@ -134,11 +134,11 @@ uv run python example.py
 
 ### Generating the documentation
 
-If added a new service, create a documentation template under api/services for that service.
+If added a new service, create a documentation template under `api/services` for that service.
 
 ```bash
 cd docs
-make html
+uv run make html
 ```
 
 ### Code style
