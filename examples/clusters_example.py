@@ -29,23 +29,27 @@ def create_cluster_example():
     # Get SSH keys
     ssh_keys = [key.id for key in verda.ssh_keys.get()]
 
+    cluster_type = '16B200'
+    cluster_image = 'ubuntu-24.04-cuda-13.0-cluster'
+    location_code = Locations.FIN_03
+
     # Check if cluster type is available
-    if not verda.clusters.is_available('16B200', Locations.FIN_03):
-        raise ValueError('Cluster type 16B200 is not available in FIN_03')
+    if not verda.clusters.is_available(cluster_type, location_code):
+        raise ValueError(f'Cluster type {cluster_type} is not available in {location_code}')
 
     # Get available images for cluster type
-    images = verda.clusters.get_cluster_images('16B200')
-    if 'ubuntu-22.04-cuda-12.9-cluster' not in images:
-        raise ValueError('Ubuntu 22.04 CUDA 12.9 cluster image is not supported for 16B200')
+    images = verda.clusters.get_cluster_images(cluster_type)
+    if cluster_image not in images:
+        raise ValueError(f'Cluster image {cluster_image} is not supported for {cluster_type}')
 
-    # Create a 16B200 cluster
+    # Create a cluster
     cluster = verda.clusters.create(
         hostname='my-compute-cluster',
-        cluster_type='16B200',
-        image='ubuntu-22.04-cuda-12.9-cluster',
+        cluster_type=cluster_type,
+        image=cluster_image,
         description='Example compute cluster for distributed training',
         ssh_key_ids=ssh_keys,
-        location=Locations.FIN_03,
+        location=location_code,
         shared_volume_name='my-shared-volume',
         shared_volume_size=30000,
         wait_for_status=None,
@@ -59,8 +63,8 @@ def create_cluster_example():
 
     # Wait for cluster to enter RUNNING status
     while cluster.status != ClusterStatus.RUNNING:
-        time.sleep(30)
         print(f'Waiting for cluster to enter RUNNING status... (status: {cluster.status})')
+        time.sleep(3)
         cluster = verda.clusters.get_by_id(cluster.id)
 
     print(f'Public IP: {cluster.ip}')
@@ -100,7 +104,13 @@ def get_cluster_by_id_example(cluster_id: str):
     print(f'  Created at: {cluster.created_at}')
     print(f'  Public IP: {cluster.ip}')
     print(f'  Worker nodes: {len(cluster.worker_nodes)}')
-
+    for node in cluster.worker_nodes:
+        print(f'    - {node.hostname} ({node.id}): {node.status}, private IP: {node.private_ip}')
+    print(f'  Shared volumes: {len(cluster.shared_volumes)}')
+    for volume in cluster.shared_volumes:
+        print(
+            f'    - {volume.name} ({volume.id}): {volume.size_in_gigabytes} GB, mounted at {volume.mount_point}'
+        )
     return cluster
 
 

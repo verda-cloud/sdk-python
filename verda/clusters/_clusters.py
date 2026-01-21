@@ -6,6 +6,7 @@ from dataclasses_json import dataclass_json
 
 from verda.constants import Actions, ClusterStatus, ErrorCodes, Locations
 from verda.exceptions import APIException
+from verda.http_client import HTTPClient
 
 CLUSTERS_ENDPOINT = '/clusters'
 
@@ -29,6 +30,24 @@ class ClusterWorkerNode:
     status: str
     hostname: str
     private_ip: str
+
+
+@dataclass_json
+@dataclass
+class SharedVolume:
+    """Represents a shared volume in a cluster.
+
+    Attributes:
+        id: Unique identifier for the volume.
+        name: Name of the volume.
+        size_in_gigabytes: Size of the volume in gigabytes.
+        mount_point: Mount point of the volume.
+    """
+
+    id: str
+    name: str
+    size_in_gigabytes: int
+    mount_point: str | None = None
 
 
 @dataclass_json
@@ -59,7 +78,9 @@ class Cluster:
     location: str
     cluster_type: str
     worker_nodes: list[ClusterWorkerNode]
+    shared_volumes: list[SharedVolume]
     ssh_key_ids: list[str]
+
     image: str | None = None
     startup_script_id: str | None = None
     ip: str | None = None
@@ -71,7 +92,7 @@ class ClustersService:
     This service provides methods to create, retrieve, and manage compute clusters.
     """
 
-    def __init__(self, http_client) -> None:
+    def __init__(self, http_client: HTTPClient) -> None:
         """Initializes the ClustersService with an HTTP client.
 
         Args:
