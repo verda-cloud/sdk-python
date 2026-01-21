@@ -31,6 +31,7 @@ class ClusterWorkerNode:
     hostname: str
     private_ip: str
 
+
 @dataclass_json
 @dataclass
 class SharedVolume:
@@ -47,6 +48,7 @@ class SharedVolume:
     name: str
     size_in_gigabytes: int
     mount_point: str | None = None
+
 
 @dataclass_json
 @dataclass
