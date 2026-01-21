@@ -1,0 +1,57 @@
+site_name: Python SDK
+site_url: https://docs.your-internal-domain.com
+repo_url: https://github.com/verda-cloud/sdk-python
+repo_name: verda-cloud/sdk-python
+
+extra_css:
+  - stylesheets/extra.css
+
+theme:
+  name: material
+  logo: logo_darkmode.svg
+  palette: 
+    # Auto-switch to dark mode based on system preference
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+  features:
+    - content.code.annotate 
+    - content.tabs.link
+    - navigation.indexes
+    - navigation.sections
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.] # Ensure this points to where your 'verda' package is located
+          options:
+            # Common options to match Sphinx autodoc behavior
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+
+# Explicit Navigation Map (Replaces toctree)
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Examples: examples.md
+  - API Reference:
+      - Client: reference/client.md
+      - Exceptions: reference/exceptions.md
+      - Constants: reference/constants.md
+      # Add your services manually here
+      - Services: reference/services.md 
+  - Contributing: contributing.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  # This enables proper styling for fenced code blocks ```python
+  - pymdownx.superfences
+  
+  # Optional: enables syntax highlighting for inline code `like this`
+  - pymdownx.inlinehilite
