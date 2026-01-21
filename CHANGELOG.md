@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add shared_volumes attribute to Cluster class
+
+## [1.18.0] - 2025-12-31
+
+### Added
+
 - Clusters support
 
 ## [1.17.4] - 2025-11-28
