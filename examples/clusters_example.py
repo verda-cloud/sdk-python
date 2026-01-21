@@ -31,7 +31,7 @@ def create_cluster_example():
 
     cluster_type = '16B200'
     cluster_image = 'ubuntu-24.04-cuda-13.0-cluster'
-    location_code=Locations.FIN_03
+    location_code = Locations.FIN_03
 
     # Check if cluster type is available
     if not verda.clusters.is_available(cluster_type, location_code):
@@ -108,7 +108,9 @@ def get_cluster_by_id_example(cluster_id: str):
         print(f'    - {node.hostname} ({node.id}): {node.status}, private IP: {node.private_ip}')
     print(f'  Shared volumes: {len(cluster.shared_volumes)}')
     for volume in cluster.shared_volumes:
-        print(f'    - {volume.name} ({volume.id}): {volume.size_in_gigabytes} GB, mounted at {volume.mount_point}')
+        print(
+            f'    - {volume.name} ({volume.id}): {volume.size_in_gigabytes} GB, mounted at {volume.mount_point}'
+        )
     return cluster
 
 
