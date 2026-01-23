@@ -1,0 +1,1 @@
+"""Verda CLI module."""
