@@ -1,7 +1,8 @@
 """Output formatting utilities for table and JSON output."""
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
@@ -9,6 +10,20 @@ from rich.console import Console
 from rich.table import Table
 
 console = Console()
+
+
+@contextmanager
+def spinner(message: str = 'Loading...') -> Generator[None, None, None]:
+    """Context manager that shows a loading spinner.
+
+    Args:
+        message: Message to display while loading
+
+    Yields:
+        None
+    """
+    with console.status(f'[cyan]{message}[/cyan]', spinner='dots'):
+        yield
 
 
 def to_dict(obj: Any) -> dict | list | Any:

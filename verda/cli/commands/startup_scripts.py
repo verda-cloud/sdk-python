@@ -8,7 +8,7 @@ import typer
 from verda.cli import main as cli_main
 from verda.cli.utils.client import get_client
 from verda.cli.utils.errors import handle_api_errors
-from verda.cli.utils.output import output_json, output_single, output_table, success
+from verda.cli.utils.output import output_json, output_single, output_table, spinner, success
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -24,7 +24,8 @@ SCRIPT_COLUMNS = [
 def list_scripts() -> None:
     """List all startup scripts."""
     client = get_client()
-    scripts = client.startup_scripts.get()
+    with spinner('Fetching startup scripts...'):
+        scripts = client.startup_scripts.get()
 
     if cli_main.state['json_output']:
         output_json(scripts)
@@ -39,7 +40,8 @@ def get_script(
 ) -> None:
     """Get startup script details by ID."""
     client = get_client()
-    script = client.startup_scripts.get_by_id(script_id)
+    with spinner('Fetching startup script...'):
+        script = client.startup_scripts.get_by_id(script_id)
 
     if cli_main.state['json_output']:
         output_json(script)
@@ -77,7 +79,8 @@ def create_script(
         script = script_file.read_text()
 
     client = get_client()
-    result = client.startup_scripts.create(name, script)
+    with spinner('Creating startup script...'):
+        result = client.startup_scripts.create(name, script)
 
     if cli_main.state['json_output']:
         output_json(result)
@@ -101,8 +104,9 @@ def delete_script(
             raise typer.Abort()
 
     client = get_client()
-    if len(script_ids) == 1:
-        client.startup_scripts.delete_by_id(script_ids[0])
-    else:
-        client.startup_scripts.delete(script_ids)
+    with spinner('Deleting startup script(s)...'):
+        if len(script_ids) == 1:
+            client.startup_scripts.delete_by_id(script_ids[0])
+        else:
+            client.startup_scripts.delete(script_ids)
     success('Script(s) deleted')

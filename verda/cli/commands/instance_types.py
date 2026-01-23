@@ -5,7 +5,7 @@ import typer
 from verda.cli import main as cli_main
 from verda.cli.utils.client import get_client
 from verda.cli.utils.errors import handle_api_errors
-from verda.cli.utils.output import output_json, output_table
+from verda.cli.utils.output import output_json, output_table, spinner
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -29,7 +29,8 @@ def format_memory(memory: dict) -> str:
 def list_instance_types() -> None:
     """List available instance types with pricing."""
     client = get_client()
-    types = client.instance_types.get()
+    with spinner('Fetching instance types...'):
+        types = client.instance_types.get()
 
     if cli_main.state['json_output']:
         output_json(types)

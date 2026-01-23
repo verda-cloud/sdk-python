@@ -5,7 +5,7 @@ import typer
 from verda.cli import main as cli_main
 from verda.cli.utils.client import get_client
 from verda.cli.utils.errors import handle_api_errors
-from verda.cli.utils.output import console, output_json
+from verda.cli.utils.output import console, output_json, spinner
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -15,7 +15,8 @@ app = typer.Typer(no_args_is_help=True)
 def get_balance() -> None:
     """Get account balance."""
     client = get_client()
-    balance = client.balance.get()
+    with spinner('Fetching balance...'):
+        balance = client.balance.get()
 
     if cli_main.state['json_output']:
         output_json({'amount': balance.amount, 'currency': balance.currency})

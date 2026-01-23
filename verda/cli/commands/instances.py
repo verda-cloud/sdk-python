@@ -7,7 +7,7 @@ import typer
 from verda.cli import main as cli_main
 from verda.cli.utils.client import get_client
 from verda.cli.utils.errors import handle_api_errors
-from verda.cli.utils.output import output_json, output_single, output_table, success
+from verda.cli.utils.output import output_json, output_single, output_table, spinner, success
 from verda.constants import Actions, Locations
 
 app = typer.Typer(no_args_is_help=True)
@@ -49,7 +49,8 @@ def list_instances(
 ) -> None:
     """List all instances."""
     client = get_client()
-    instances = client.instances.get(status=status)
+    with spinner('Fetching instances...'):
+        instances = client.instances.get(status=status)
 
     if cli_main.state['json_output']:
         output_json(instances)
@@ -64,7 +65,8 @@ def get_instance(
 ) -> None:
     """Get instance details by ID."""
     client = get_client()
-    instance = client.instances.get_by_id(instance_id)
+    with spinner('Fetching instance...'):
+        instance = client.instances.get_by_id(instance_id)
 
     if cli_main.state['json_output']:
         output_json(instance)
@@ -140,19 +142,20 @@ def create_instance(
 
     max_wait_time = 0 if no_wait else 180
 
-    instance = client.instances.create(
-        instance_type=instance_type,
-        image=image,
-        hostname=hostname,
-        description=description,
-        ssh_key_ids=ssh_key_ids or [],
-        location=location,
-        startup_script_id=startup_script_id,
-        existing_volumes=existing_volumes,
-        is_spot=spot,
-        contract=contract,
-        max_wait_time=max_wait_time,
-    )
+    with spinner('Creating instance...'):
+        instance = client.instances.create(
+            instance_type=instance_type,
+            image=image,
+            hostname=hostname,
+            description=description,
+            ssh_key_ids=ssh_key_ids or [],
+            location=location,
+            startup_script_id=startup_script_id,
+            existing_volumes=existing_volumes,
+            is_spot=spot,
+            contract=contract,
+            max_wait_time=max_wait_time,
+        )
 
     if cli_main.state['json_output']:
         output_json(instance)
@@ -175,7 +178,8 @@ def start_instance(
 ) -> None:
     """Start an instance."""
     client = get_client()
-    client.instances.action(instance_id, Actions.START)
+    with spinner('Starting instance...'):
+        client.instances.action(instance_id, Actions.START)
     success(f'Instance {instance_id} start initiated')
 
 
@@ -186,7 +190,8 @@ def stop_instance(
 ) -> None:
     """Stop (shutdown) an instance."""
     client = get_client()
-    client.instances.action(instance_id, Actions.SHUTDOWN)
+    with spinner('Stopping instance...'):
+        client.instances.action(instance_id, Actions.SHUTDOWN)
     success(f'Instance {instance_id} shutdown initiated')
 
 
@@ -206,7 +211,8 @@ def delete_instance(
             raise typer.Abort()
 
     client = get_client()
-    client.instances.action(instance_id, Actions.DELETE)
+    with spinner('Deleting instance...'):
+        client.instances.action(instance_id, Actions.DELETE)
     success(f'Instance {instance_id} deletion initiated')
 
 
@@ -217,7 +223,8 @@ def hibernate_instance(
 ) -> None:
     """Hibernate an instance."""
     client = get_client()
-    client.instances.action(instance_id, Actions.HIBERNATE)
+    with spinner('Hibernating instance...'):
+        client.instances.action(instance_id, Actions.HIBERNATE)
     success(f'Instance {instance_id} hibernation initiated')
 
 
@@ -228,7 +235,8 @@ def restore_instance(
 ) -> None:
     """Restore a hibernated instance."""
     client = get_client()
-    client.instances.action(instance_id, Actions.RESTORE)
+    with spinner('Restoring instance...'):
+        client.instances.action(instance_id, Actions.RESTORE)
     success(f'Instance {instance_id} restore initiated')
 
 
@@ -252,16 +260,20 @@ def check_availability(
     client = get_client()
 
     if instance_type:
-        available = client.instances.is_available(
-            instance_type, is_spot=spot, location_code=location
-        )
+        with spinner('Checking availability...'):
+            available = client.instances.is_available(
+                instance_type, is_spot=spot, location_code=location
+            )
         if cli_main.state['json_output']:
             output_json({'instance_type': instance_type, 'available': available})
         else:
             status = '[green]Available[/green]' if available else '[red]Not Available[/red]'
             typer.echo(f'{instance_type}: {status}')
     else:
-        availabilities = client.instances.get_availabilities(is_spot=spot, location_code=location)
+        with spinner('Fetching availabilities...'):
+            availabilities = client.instances.get_availabilities(
+                is_spot=spot, location_code=location
+            )
         if cli_main.state['json_output']:
             output_json(availabilities)
         else:

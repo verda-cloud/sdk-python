@@ -8,7 +8,7 @@ import typer
 from verda.cli import main as cli_main
 from verda.cli.utils.client import get_client
 from verda.cli.utils.errors import handle_api_errors
-from verda.cli.utils.output import output_json, output_single, output_table, success
+from verda.cli.utils.output import output_json, output_single, output_table, spinner, success
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -24,7 +24,8 @@ SSH_KEY_COLUMNS = [
 def list_ssh_keys() -> None:
     """List all SSH keys."""
     client = get_client()
-    keys = client.ssh_keys.get()
+    with spinner('Fetching SSH keys...'):
+        keys = client.ssh_keys.get()
 
     if cli_main.state['json_output']:
         output_json(keys)
@@ -39,7 +40,8 @@ def get_ssh_key(
 ) -> None:
     """Get SSH key details by ID."""
     client = get_client()
-    key = client.ssh_keys.get_by_id(key_id)
+    with spinner('Fetching SSH key...'):
+        key = client.ssh_keys.get_by_id(key_id)
 
     if cli_main.state['json_output']:
         output_json(key)
@@ -77,7 +79,8 @@ def create_ssh_key(
         key = key_file.read_text().strip()
 
     client = get_client()
-    ssh_key = client.ssh_keys.create(name, key)
+    with spinner('Creating SSH key...'):
+        ssh_key = client.ssh_keys.create(name, key)
 
     if cli_main.state['json_output']:
         output_json(ssh_key)
@@ -101,8 +104,9 @@ def delete_ssh_key(
             raise typer.Abort()
 
     client = get_client()
-    if len(key_ids) == 1:
-        client.ssh_keys.delete_by_id(key_ids[0])
-    else:
-        client.ssh_keys.delete(key_ids)
+    with spinner('Deleting SSH key(s)...'):
+        if len(key_ids) == 1:
+            client.ssh_keys.delete_by_id(key_ids[0])
+        else:
+            client.ssh_keys.delete(key_ids)
     success('SSH key(s) deleted')

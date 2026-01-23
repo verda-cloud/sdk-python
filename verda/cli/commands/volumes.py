@@ -7,7 +7,7 @@ import typer
 from verda.cli import main as cli_main
 from verda.cli.utils.client import get_client
 from verda.cli.utils.errors import handle_api_errors
-from verda.cli.utils.output import output_json, output_single, output_table, success
+from verda.cli.utils.output import output_json, output_single, output_table, spinner, success
 from verda.constants import Locations, VolumeTypes
 
 app = typer.Typer(no_args_is_help=True)
@@ -48,7 +48,8 @@ def list_volumes(
 ) -> None:
     """List all volumes."""
     client = get_client()
-    volumes = client.volumes.get(status=status)
+    with spinner('Fetching volumes...'):
+        volumes = client.volumes.get(status=status)
 
     if cli_main.state['json_output']:
         output_json(volumes)
@@ -63,7 +64,8 @@ def get_volume(
 ) -> None:
     """Get volume details by ID."""
     client = get_client()
-    volume = client.volumes.get_by_id(volume_id)
+    with spinner('Fetching volume...'):
+        volume = client.volumes.get_by_id(volume_id)
 
     if cli_main.state['json_output']:
         output_json(volume)
@@ -108,13 +110,14 @@ def create_volume(
 ) -> None:
     """Create a new volume."""
     client = get_client()
-    volume = client.volumes.create(
-        type=volume_type,
-        name=name,
-        size=size,
-        instance_id=instance_id,
-        location=location,
-    )
+    with spinner('Creating volume...'):
+        volume = client.volumes.create(
+            type=volume_type,
+            name=name,
+            size=size,
+            instance_id=instance_id,
+            location=location,
+        )
 
     if cli_main.state['json_output']:
         output_json(volume)
@@ -133,7 +136,8 @@ def attach_volume(
 ) -> None:
     """Attach volume(s) to an instance."""
     client = get_client()
-    client.volumes.attach(volume_ids, instance_id)
+    with spinner('Attaching volume(s)...'):
+        client.volumes.attach(volume_ids, instance_id)
     success(f'Volume(s) attached to instance {instance_id}')
 
 
@@ -144,7 +148,8 @@ def detach_volume(
 ) -> None:
     """Detach volume(s) from instance(s)."""
     client = get_client()
-    client.volumes.detach(volume_ids)
+    with spinner('Detaching volume(s)...'):
+        client.volumes.detach(volume_ids)
     success('Volume(s) detached')
 
 
@@ -168,7 +173,8 @@ def delete_volume(
             raise typer.Abort()
 
     client = get_client()
-    client.volumes.delete(volume_ids, is_permanent=permanent)
+    with spinner('Deleting volume(s)...'):
+        client.volumes.delete(volume_ids, is_permanent=permanent)
     success('Volume(s) deleted')
 
 
@@ -183,7 +189,8 @@ def rename_volume(
 ) -> None:
     """Rename volume(s)."""
     client = get_client()
-    client.volumes.rename(volume_ids, name)
+    with spinner('Renaming volume(s)...'):
+        client.volumes.rename(volume_ids, name)
     success(f"Volume(s) renamed to '{name}'")
 
 
@@ -198,7 +205,8 @@ def resize_volume(
 ) -> None:
     """Increase volume size (can only increase, not decrease)."""
     client = get_client()
-    client.volumes.increase_size(volume_ids, size)
+    with spinner('Resizing volume(s)...'):
+        client.volumes.increase_size(volume_ids, size)
     success(f'Volume(s) resized to {size}GB')
 
 
@@ -217,7 +225,8 @@ def clone_volume(
 ) -> None:
     """Clone a volume."""
     client = get_client()
-    volume = client.volumes.clone(volume_id, name=name, type=volume_type)
+    with spinner('Cloning volume...'):
+        volume = client.volumes.clone(volume_id, name=name, type=volume_type)
 
     if cli_main.state['json_output']:
         output_json(volume)
@@ -230,7 +239,8 @@ def clone_volume(
 def list_trash() -> None:
     """List volumes in trash."""
     client = get_client()
-    volumes = client.volumes.get_in_trash()
+    with spinner('Fetching trash...'):
+        volumes = client.volumes.get_in_trash()
 
     if cli_main.state['json_output']:
         output_json(volumes)

@@ -7,7 +7,14 @@ import typer
 from verda.cli import main as cli_main
 from verda.cli.utils.client import get_client
 from verda.cli.utils.errors import handle_api_errors
-from verda.cli.utils.output import console, output_json, output_single, output_table, success
+from verda.cli.utils.output import (
+    console,
+    output_json,
+    output_single,
+    output_table,
+    spinner,
+    success,
+)
 from verda.constants import ClusterStatus, Locations
 
 app = typer.Typer(no_args_is_help=True)
@@ -46,7 +53,8 @@ def list_clusters(
 ) -> None:
     """List all clusters."""
     client = get_client()
-    clusters = client.clusters.get(status=status)
+    with spinner('Fetching clusters...'):
+        clusters = client.clusters.get(status=status)
 
     if cli_main.state['json_output']:
         output_json(clusters)
@@ -61,7 +69,8 @@ def get_cluster(
 ) -> None:
     """Get cluster details by ID."""
     client = get_client()
-    cluster = client.clusters.get_by_id(cluster_id)
+    with spinner('Fetching cluster...'):
+        cluster = client.clusters.get_by_id(cluster_id)
 
     if cli_main.state['json_output']:
         output_json(cluster)
@@ -131,18 +140,19 @@ def create_cluster(
 
     wait_status = None if no_wait else ClusterStatus.PROVISIONING
 
-    cluster = client.clusters.create(
-        cluster_type=cluster_type,
-        image=image,
-        hostname=hostname,
-        description=description,
-        ssh_key_ids=ssh_key_ids or [],
-        location=location,
-        startup_script_id=startup_script_id,
-        shared_volume_name=shared_volume_name,
-        shared_volume_size=shared_volume_size,
-        wait_for_status=wait_status,
-    )
+    with spinner('Creating cluster...'):
+        cluster = client.clusters.create(
+            cluster_type=cluster_type,
+            image=image,
+            hostname=hostname,
+            description=description,
+            ssh_key_ids=ssh_key_ids or [],
+            location=location,
+            startup_script_id=startup_script_id,
+            shared_volume_name=shared_volume_name,
+            shared_volume_size=shared_volume_size,
+            wait_for_status=wait_status,
+        )
 
     if cli_main.state['json_output']:
         output_json(cluster)
@@ -166,7 +176,8 @@ def delete_cluster(
             raise typer.Abort()
 
     client = get_client()
-    client.clusters.delete(cluster_id)
+    with spinner('Deleting cluster...'):
+        client.clusters.delete(cluster_id)
     success(f'Cluster {cluster_id} deletion initiated')
 
 
@@ -186,14 +197,16 @@ def check_availability(
     client = get_client()
 
     if cluster_type:
-        available = client.clusters.is_available(cluster_type, location_code=location)
+        with spinner('Checking availability...'):
+            available = client.clusters.is_available(cluster_type, location_code=location)
         if cli_main.state['json_output']:
             output_json({'cluster_type': cluster_type, 'available': available})
         else:
             status = '[green]Available[/green]' if available else '[red]Not Available[/red]'
             typer.echo(f'{cluster_type}: {status}')
     else:
-        availabilities = client.clusters.get_availabilities(location_code=location)
+        with spinner('Fetching availabilities...'):
+            availabilities = client.clusters.get_availabilities(location_code=location)
         if cli_main.state['json_output']:
             output_json(availabilities)
         else:
@@ -212,7 +225,8 @@ def list_cluster_images(
 ) -> None:
     """List available cluster images."""
     client = get_client()
-    images = client.clusters.get_cluster_images(cluster_type=cluster_type)
+    with spinner('Fetching images...'):
+        images = client.clusters.get_cluster_images(cluster_type=cluster_type)
 
     if cli_main.state['json_output']:
         output_json(images)
