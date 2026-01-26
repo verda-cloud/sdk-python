@@ -15,7 +15,7 @@ def get_client() -> VerdaClient:
         VERDA_CLIENT_SECRET: API client secret
 
     Optional environment variables:
-        VERDA_BASE_URL: API base URL (default: https://api.datacrunch.io/v1)
+        VERDA_BASE_URL: API base URL (default: https://api.verda.ai/v1)
         VERDA_INFERENCE_KEY: Inference API key
 
     Returns:
