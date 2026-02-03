@@ -268,13 +268,13 @@ class TestInstancesService:
         assert responses.assert_call_count(endpoint, 1) is True
         assert responses.assert_call_count(url, 1) is True
 
-    def test_create_spot_instance(self, instances_service, endpoint):
+    def test_create_spot_instance_with_spot_volume_policy(self, instances_service, endpoint):
         # arrange
         responses.add(responses.POST, endpoint, body=INSTANCE_ID, status=200)
         url = endpoint + '/' + INSTANCE_ID
         responses.add(responses.GET, url, json=PAYLOAD[0], status=200)
 
-        SPOT_INSTANCE_OS_VOLUME = OSVolume(
+        os_volume = OSVolume(
             name='spot-instance-os-volume', size=50, on_spot_discontinue='delete_permanently'
         )
 
@@ -285,7 +285,7 @@ class TestInstancesService:
             ssh_key_ids=[SSH_KEY_ID],
             hostname=INSTANCE_HOSTNAME,
             description=INSTANCE_DESCRIPTION,
-            os_volume=SPOT_INSTANCE_OS_VOLUME,
+            os_volume=os_volume,
         )
 
         # assert
