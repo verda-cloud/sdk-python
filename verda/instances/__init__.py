@@ -3,6 +3,6 @@ from ._instances import (
     Instance,
     InstancesService,
     OnSpotDiscontinue,
-    Pricing,
     OSVolume,
+    Pricing,
 )

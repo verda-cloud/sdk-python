@@ -1,6 +1,7 @@
 import json
+
 import pytest
-import responses  # https://github.com/getsentry/responses
+import responses
 
 from verda.constants import Actions, ErrorCodes, Locations
 from verda.exceptions import APIException
