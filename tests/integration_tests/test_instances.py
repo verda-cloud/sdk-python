@@ -12,6 +12,7 @@ IN_GITHUB_ACTIONS = os.getenv('GITHUB_ACTIONS') == 'true'
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 
+
 @pytest.mark.skipif(IN_GITHUB_ACTIONS, reason="Test doesn't work in Github Actions.")
 @pytest.mark.withoutresponses
 class TestInstances:
@@ -54,4 +55,6 @@ class TestInstances:
         assert os_volume.size == 55
 
         # delete instance
-        verda_client.instances.action(instance.id, 'delete', volume_ids=[instance.os_volume_id], delete_permanently=True)
+        verda_client.instances.action(
+            instance.id, 'delete', volume_ids=[instance.os_volume_id], delete_permanently=True
+        )

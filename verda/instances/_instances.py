@@ -13,11 +13,12 @@ Contract = Literal['LONG_TERM', 'PAY_AS_YOU_GO', 'SPOT']
 Pricing = Literal['DYNAMIC_PRICE', 'FIXED_PRICE']
 OnSpotDiscontinue = Literal['keep_detached', 'move_to_trash', 'delete_permanently']
 
+
 @dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class OSVolume:
     """Represents an operating system volume.
-    
+
     Attributes:
         name: Name of the volume.
         size: Size of the volume in GB.
@@ -27,6 +28,7 @@ class OSVolume:
             - delete_permanently: Delete the volume permanently.
             Defaults to keep_detached.
     """
+
     name: str
     size: int
     on_spot_discontinue: OnSpotDiscontinue | None = None
@@ -189,7 +191,11 @@ class InstancesService:
             'hostname': hostname,
             'description': description,
             'location_code': location,
-            'os_volume': os_volume if isinstance(os_volume, dict) else os_volume.to_dict() if os_volume else None,
+            'os_volume': os_volume
+            if isinstance(os_volume, dict)
+            else os_volume.to_dict()
+            if os_volume
+            else None,
             'volumes': volumes or [],
             'existing_volumes': existing_volumes or [],
             'is_spot': is_spot,

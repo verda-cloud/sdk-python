@@ -273,7 +273,9 @@ class TestInstancesService:
         url = endpoint + '/' + INSTANCE_ID
         responses.add(responses.GET, url, json=PAYLOAD[0], status=200)
 
-        SPOT_INSTANCE_OS_VOLUME = OSVolume(name='spot-instance-os-volume', size=50, on_spot_discontinue='delete_permanently')
+        SPOT_INSTANCE_OS_VOLUME = OSVolume(
+            name='spot-instance-os-volume', size=50, on_spot_discontinue='delete_permanently'
+        )
 
         # act
         instances_service.create(
