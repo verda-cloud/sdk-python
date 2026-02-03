@@ -1,9 +1,10 @@
+import json
 import pytest
 import responses  # https://github.com/getsentry/responses
 
 from verda.constants import Actions, ErrorCodes, Locations
 from verda.exceptions import APIException
-from verda.instances import Instance, InstancesService
+from verda.instances import Instance, InstancesService, OSVolume
 
 INVALID_REQUEST = ErrorCodes.INVALID_REQUEST
 INVALID_REQUEST_MESSAGE = 'Your existence is invalid'
@@ -266,6 +267,31 @@ class TestInstancesService:
         assert responses.assert_call_count(endpoint, 1) is True
         assert responses.assert_call_count(url, 1) is True
 
+    def test_create_spot_instance(self, instances_service, endpoint):
+        # arrange
+        responses.add(responses.POST, endpoint, body=INSTANCE_ID, status=200)
+        url = endpoint + '/' + INSTANCE_ID
+        responses.add(responses.GET, url, json=PAYLOAD[0], status=200)
+
+        SPOT_INSTANCE_OS_VOLUME = OSVolume(name='spot-instance-os-volume', size=50, on_spot_discontinue='delete_permanently')
+
+        # act
+        instances_service.create(
+            instance_type=INSTANCE_TYPE,
+            image=INSTANCE_IMAGE,
+            ssh_key_ids=[SSH_KEY_ID],
+            hostname=INSTANCE_HOSTNAME,
+            description=INSTANCE_DESCRIPTION,
+            os_volume=SPOT_INSTANCE_OS_VOLUME,
+        )
+
+        # assert
+        request_body = responses.calls[0].request.body.decode('utf-8')
+        body = json.loads(request_body)
+        assert body['os_volume']['name'] == SPOT_INSTANCE_OS_VOLUME.name
+        assert body['os_volume']['size'] == SPOT_INSTANCE_OS_VOLUME.size
+        assert body['os_volume']['on_spot_discontinue'] == 'delete_permanently'
+
     def test_create_instance_attached_os_volume_successful(self, instances_service, endpoint):
         # arrange - add response mock
         # create instance
@@ -339,6 +365,28 @@ class TestInstancesService:
         # assert
         assert result is None
         assert responses.assert_call_count(url, 1) is True
+
+    def test_action_with_delete_permanently_sends_payload(self, instances_service, endpoint):
+        # arrange
+        url = endpoint
+        responses.add(responses.PUT, url, status=202)
+        volume_ids = [OS_VOLUME_ID]
+
+        # act
+        instances_service.action(
+            id_list=[INSTANCE_ID],
+            action=Actions.DELETE,
+            volume_ids=volume_ids,
+            delete_permanently=True,
+        )
+
+        # assert
+        request_body = responses.calls[0].request.body.decode('utf-8')
+        body = json.loads(request_body)
+        assert body['id'] == [INSTANCE_ID]
+        assert body['action'] == Actions.DELETE
+        assert body['volume_ids'] == volume_ids
+        assert body['delete_permanently'] is True
 
     def test_action_failed(self, instances_service, endpoint):
         # arrange - add response mock

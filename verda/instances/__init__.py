@@ -1,1 +1,8 @@
-from ._instances import Contract, Instance, InstancesService, Pricing
+from ._instances import (
+    Contract,
+    Instance,
+    InstancesService,
+    OnSpotDiscontinue,
+    Pricing,
+    OSVolume,
+)
