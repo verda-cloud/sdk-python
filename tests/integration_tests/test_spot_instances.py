@@ -30,7 +30,9 @@ class TestInstances:
             image='ubuntu-22.04',
             is_spot=True,
             ssh_key_ids=[ssh_key.id],
-            os_volume=OSVolume(name='test-os-volume-spot', size=56, on_spot_discontinue='delete_permanently'),
+            os_volume=OSVolume(
+                name='test-os-volume-spot', size=56, on_spot_discontinue='delete_permanently'
+            ),
         )
 
         # assert instance is created
