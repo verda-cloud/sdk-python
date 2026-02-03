@@ -291,8 +291,8 @@ class TestInstancesService:
         # assert
         request_body = responses.calls[0].request.body.decode('utf-8')
         body = json.loads(request_body)
-        assert body['os_volume']['name'] == SPOT_INSTANCE_OS_VOLUME.name
-        assert body['os_volume']['size'] == SPOT_INSTANCE_OS_VOLUME.size
+        assert body['os_volume']['name'] == os_volume.name
+        assert body['os_volume']['size'] == os_volume.size
         assert body['os_volume']['on_spot_discontinue'] == 'delete_permanently'
 
     def test_create_instance_attached_os_volume_successful(self, instances_service, endpoint):
