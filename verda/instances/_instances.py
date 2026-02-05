@@ -3,7 +3,7 @@ import time
 from dataclasses import dataclass
 from typing import Literal
 
-from dataclasses_json import dataclass_json
+from dataclasses_json import Undefined, dataclass_json
 
 from verda.constants import InstanceStatus, Locations
 
@@ -11,6 +11,27 @@ INSTANCES_ENDPOINT = '/instances'
 
 Contract = Literal['LONG_TERM', 'PAY_AS_YOU_GO', 'SPOT']
 Pricing = Literal['DYNAMIC_PRICE', 'FIXED_PRICE']
+OnSpotDiscontinue = Literal['keep_detached', 'move_to_trash', 'delete_permanently']
+
+
+@dataclass_json(undefined=Undefined.EXCLUDE)
+@dataclass
+class OSVolume:
+    """Represents an operating system volume.
+
+    Attributes:
+        name: Name of the volume.
+        size: Size of the volume in GB.
+        on_spot_discontinue: What to do with the volume on spot discontinue.
+            - keep_detached: Keep the volume detached.
+            - move_to_trash: Move the volume to trash.
+            - delete_permanently: Delete the volume permanently.
+            Defaults to keep_detached.
+    """
+
+    name: str
+    size: int
+    on_spot_discontinue: OnSpotDiscontinue | None = None
 
 
 @dataclass_json
@@ -123,7 +144,7 @@ class InstancesService:
         startup_script_id: str | None = None,
         volumes: list[dict] | None = None,
         existing_volumes: list[str] | None = None,
-        os_volume: dict | None = None,
+        os_volume: OSVolume | dict | None = None,
         is_spot: bool = False,
         contract: Contract | None = None,
         pricing: Pricing | None = None,
@@ -170,7 +191,7 @@ class InstancesService:
             'hostname': hostname,
             'description': description,
             'location_code': location,
-            'os_volume': os_volume,
+            'os_volume': os_volume.to_dict() if isinstance(os_volume, OSVolume) else os_volume,
             'volumes': volumes or [],
             'existing_volumes': existing_volumes or [],
             'is_spot': is_spot,
@@ -204,6 +225,7 @@ class InstancesService:
         id_list: list[str] | str,
         action: str,
         volume_ids: list[str] | None = None,
+        delete_permanently: bool = False,
     ) -> None:
         """Performs an action on one or more instances.
 
@@ -211,6 +233,9 @@ class InstancesService:
             id_list: Single instance ID or list of instance IDs to act upon.
             action: Action to perform on the instances.
             volume_ids: Optional list of volume IDs to delete.
+            delete_permanently: When deleting (or discontinuing), delete the
+                given volume IDs permanently. Only applicable when volume_ids
+                is also provided.
 
         Raises:
             HTTPError: If the action fails or other API error occurs.
@@ -218,7 +243,14 @@ class InstancesService:
         if type(id_list) is str:
             id_list = [id_list]
 
-        payload = {'id': id_list, 'action': action, 'volume_ids': volume_ids}
+        payload = {
+            'id': id_list,
+            'action': action,
+            'volume_ids': volume_ids,
+        }
+
+        if delete_permanently:
+            payload['delete_permanently'] = True
 
         self._http_client.put(INSTANCES_ENDPOINT, json=payload)
         return

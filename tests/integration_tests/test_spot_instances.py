@@ -6,6 +6,7 @@ import pytest
 
 from verda import VerdaClient
 from verda.constants import Locations
+from verda.instances import OSVolume
 
 IN_GITHUB_ACTIONS = os.getenv('GITHUB_ACTIONS') == 'true'
 
@@ -16,7 +17,7 @@ logger = logging.getLogger()
 @pytest.mark.skipif(IN_GITHUB_ACTIONS, reason="Test doesn't work in Github Actions.")
 @pytest.mark.withoutresponses
 class TestInstances:
-    def test_create_instance(self, verda_client: VerdaClient):
+    def test_create_spot(self, verda_client: VerdaClient):
         # get ssh key
         ssh_key = verda_client.ssh_keys.get()[0]
 
@@ -27,8 +28,11 @@ class TestInstances:
             instance_type='CPU.4V.16G',
             description='test cpu instance',
             image='ubuntu-22.04',
+            is_spot=True,
             ssh_key_ids=[ssh_key.id],
-            os_volume={'name': 'test-os-volume-cpu', 'size': 55},
+            os_volume=OSVolume(
+                name='test-os-volume-spot', size=56, on_spot_discontinue='delete_permanently'
+            ),
         )
 
         # assert instance is created
@@ -51,10 +55,5 @@ class TestInstances:
         # get os volume
         os_volume = verda_client.volumes.get_by_id(instance.os_volume_id)
         assert os_volume.id is not None
-        assert os_volume.name == 'test-os-volume-cpu'
-        assert os_volume.size == 55
-
-        # delete instance
-        verda_client.instances.action(
-            instance.id, 'delete', volume_ids=[instance.os_volume_id], delete_permanently=True
-        )
+        assert os_volume.name == 'test-os-volume-spot'
+        assert os_volume.size == 56
