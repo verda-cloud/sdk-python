@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.19.0] - 2025-02-05
 
-- Add `on_spot_discontinue` parameter for instance OS volumes. Previously the policy was always `'move_to_trash'`, now it can be set to `'delete_permanently'` or `'keep_detached'`:
+### Added
+
+- Add `on_spot_discontinue` parameter for instance OS volumes. Previously the policy was always `'keep_detached'`, now it can be set to `'move_to_trash'` or `'delete_permanently'`:
     ```python
     instance = verda_client.instances.create(
         hostname='test-instance',
