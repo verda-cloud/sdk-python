@@ -191,11 +191,7 @@ class InstancesService:
             'hostname': hostname,
             'description': description,
             'location_code': location,
-            'os_volume': os_volume
-            if isinstance(os_volume, dict)
-            else os_volume.to_dict()
-            if os_volume
-            else None,
+            'os_volume': os_volume.to_dict() if isinstance(os_volume, OSVolume) else os_volume,
             'volumes': volumes or [],
             'existing_volumes': existing_volumes or [],
             'is_spot': is_spot,
