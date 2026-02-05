@@ -1,6 +1,6 @@
 [project]
 name = "verda"
-version = "1.19.0"
+version = "1.20.0"
 description = "Official Python SDK for Verda (formerly DataCrunch) Public API"
 readme = "README.md"
 requires-python = ">=3.10"
