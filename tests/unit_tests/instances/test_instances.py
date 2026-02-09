@@ -357,6 +357,48 @@ class TestInstancesService:
         assert excinfo.value.message == INVALID_REQUEST_MESSAGE
         assert responses.assert_call_count(endpoint, 1) is True
 
+    def test_create_nowait_successful(self, instances_service, endpoint):
+        # arrange - add response mock
+        responses.add(responses.POST, endpoint, body=INSTANCE_ID, status=200)
+
+        # act
+        result = instances_service.create_nowait(
+            instance_type=INSTANCE_TYPE,
+            image=INSTANCE_IMAGE,
+            ssh_key_ids=[SSH_KEY_ID],
+            hostname=INSTANCE_HOSTNAME,
+            description=INSTANCE_DESCRIPTION,
+            os_volume=INSTANCE_OS_VOLUME,
+        )
+
+        # assert
+        assert result == INSTANCE_ID
+        assert responses.assert_call_count(endpoint, 1) is True
+
+    def test_create_nowait_failed(self, instances_service, endpoint):
+        # arrange - add response mock
+        responses.add(
+            responses.POST,
+            endpoint,
+            json={'code': INVALID_REQUEST, 'message': INVALID_REQUEST_MESSAGE},
+            status=400,
+        )
+
+        # act
+        with pytest.raises(APIException) as excinfo:
+            instances_service.create_nowait(
+                instance_type=INSTANCE_TYPE,
+                image=INSTANCE_IMAGE,
+                ssh_key_ids=[SSH_KEY_ID],
+                hostname=INSTANCE_HOSTNAME,
+                description=INSTANCE_DESCRIPTION,
+            )
+
+        # assert
+        assert excinfo.value.code == INVALID_REQUEST
+        assert excinfo.value.message == INVALID_REQUEST_MESSAGE
+        assert responses.assert_call_count(endpoint, 1) is True
+
     def test_action_successful(self, instances_service, endpoint):
         # arrange - add response mock
         url = endpoint
