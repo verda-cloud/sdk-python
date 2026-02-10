@@ -1,5 +1,6 @@
 import itertools
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -150,6 +151,7 @@ class InstancesService:
         pricing: Pricing | None = None,
         coupon: str | None = None,
         *,
+        wait_for_status: str | Callable[[str], bool] | None = lambda s: s != InstanceStatus.ORDERED,
         max_wait_time: float = 180,
         initial_interval: float = 0.5,
         max_interval: float = 5,
@@ -172,6 +174,7 @@ class InstancesService:
             contract: Optional contract type for the instance.
             pricing: Optional pricing model for the instance.
             coupon: Optional coupon code for discounts.
+            wait_for_status: Status to wait for the instance to reach, or callable that returns True when the desired status is reached. Default to any status other than ORDERED. If None, no wait is performed.
             max_wait_time: Maximum total wait for the instance to start provisioning, in seconds (default: 180)
             initial_interval: Initial interval, in seconds (default: 0.5)
             max_interval: The longest single delay allowed between retries, in seconds (default: 5)
@@ -179,81 +182,6 @@ class InstancesService:
 
         Returns:
             The newly created instance object.
-
-        Raises:
-            HTTPError: If instance creation fails or other API error occurs.
-        """
-        id = self.create_nowait(
-            instance_type=instance_type,
-            image=image,
-            hostname=hostname,
-            description=description,
-            ssh_key_ids=ssh_key_ids,
-            location=location,
-            startup_script_id=startup_script_id,
-            volumes=volumes,
-            existing_volumes=existing_volumes,
-            os_volume=os_volume,
-            is_spot=is_spot,
-            contract=contract,
-            pricing=pricing,
-            coupon=coupon,
-        )
-
-        # Wait for instance to enter provisioning state with timeout
-        # TODO(shamrin) extract backoff logic, _clusters module has the same code
-        deadline = time.monotonic() + max_wait_time
-        for i in itertools.count():
-            instance = self.get_by_id(id)
-            if instance.status != InstanceStatus.ORDERED:
-                return instance
-
-            now = time.monotonic()
-            if now >= deadline:
-                raise TimeoutError(
-                    f'Instance {id} did not enter provisioning state within {max_wait_time:.1f} seconds'
-                )
-
-            interval = min(initial_interval * backoff_coefficient**i, max_interval, deadline - now)
-            time.sleep(interval)
-
-    def create_nowait(
-        self,
-        instance_type: str,
-        image: str,
-        hostname: str,
-        description: str,
-        ssh_key_ids: list = [],
-        location: str = Locations.FIN_03,
-        startup_script_id: str | None = None,
-        volumes: list[dict] | None = None,
-        existing_volumes: list[str] | None = None,
-        os_volume: OSVolume | dict | None = None,
-        is_spot: bool = False,
-        contract: Contract | None = None,
-        pricing: Pricing | None = None,
-        coupon: str | None = None,
-    ) -> str:
-        """Creates a new cloud instance without waiting for it to enter the provisioning state.
-
-        Args:
-            instance_type: Type of instance to create (e.g., '8V100.48V').
-            image: Image type or existing OS volume ID for the instance.
-            hostname: Network hostname for the instance.
-            description: Human-readable description of the instance.
-            ssh_key_ids: List of SSH key IDs to associate with the instance.
-            location: Datacenter location code (default: Locations.FIN_03).
-            startup_script_id: Optional ID of startup script to run.
-            volumes: Optional list of volume configurations to create.
-            existing_volumes: Optional list of existing volume IDs to attach.
-            os_volume: Optional OS volume configuration details.
-            is_spot: Whether to create a spot instance.
-            contract: Optional contract type for the instance.
-            pricing: Optional pricing model for the instance.
-            coupon: Optional coupon code for discounts.
-
-        Returns:
-            The newly created instance ID.
 
         Raises:
             HTTPError: If instance creation fails or other API error occurs.
@@ -276,7 +204,30 @@ class InstancesService:
             payload['contract'] = contract
         if pricing:
             payload['pricing'] = pricing
-        return self._http_client.post(INSTANCES_ENDPOINT, json=payload).text
+        id = self._http_client.post(INSTANCES_ENDPOINT, json=payload).text
+
+        if not wait_for_status:
+            return self.get_by_id(id)
+
+        # Wait for instance to enter provisioning state with timeout
+        # TODO(shamrin) extract backoff logic, _clusters module has the same code
+        deadline = time.monotonic() + max_wait_time
+        for i in itertools.count():
+            instance = self.get_by_id(id)
+            if callable(wait_for_status):
+                if wait_for_status(instance.status):
+                    return instance
+            elif instance.status == wait_for_status:
+                return instance
+
+            now = time.monotonic()
+            if now >= deadline:
+                raise TimeoutError(
+                    f'Instance {id} did not enter provisioning state within {max_wait_time:.1f} seconds'
+                )
+
+            interval = min(initial_interval * backoff_coefficient**i, max_interval, deadline - now)
+            time.sleep(interval)
 
     def action(
         self,
