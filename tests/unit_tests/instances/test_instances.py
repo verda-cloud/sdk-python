@@ -1,9 +1,10 @@
+import copy
 import json
 
 import pytest
 import responses
 
-from verda.constants import Actions, ErrorCodes, Locations
+from verda.constants import Actions, ErrorCodes, InstanceStatus, Locations
 from verda.exceptions import APIException
 from verda.instances import Instance, InstancesService, OSVolume
 
@@ -332,6 +333,61 @@ class TestInstancesService:
         assert isinstance(instance.storage, dict)
         assert responses.assert_call_count(endpoint, 1) is True
         assert responses.assert_call_count(url, 1) is True
+
+    @pytest.mark.parametrize(
+        ('wait_for_status', 'expected_status', 'expected_get_instance_call_count'),
+        [
+            (None, InstanceStatus.ORDERED, 1),
+            (InstanceStatus.ORDERED, InstanceStatus.ORDERED, 1),
+            (InstanceStatus.PROVISIONING, InstanceStatus.PROVISIONING, 2),
+            (lambda status: status != InstanceStatus.ORDERED, InstanceStatus.PROVISIONING, 2),
+            (InstanceStatus.RUNNING, InstanceStatus.RUNNING, 3),
+        ],
+    )
+    def test_create_wait_for_status(
+        self,
+        instances_service,
+        endpoint,
+        wait_for_status,
+        expected_status,
+        expected_get_instance_call_count,
+    ):
+        # arrange - add response mock
+        # create instance
+        responses.add(responses.POST, endpoint, body=INSTANCE_ID, status=200)
+        # First get instance by id - ordered
+        get_instance_url = endpoint + '/' + INSTANCE_ID
+        payload = copy.deepcopy(PAYLOAD[0])
+        payload['status'] = InstanceStatus.ORDERED
+        responses.add(responses.GET, get_instance_url, json=payload, status=200)
+        # Second get instance by id - provisioning
+        payload = copy.deepcopy(PAYLOAD[0])
+        payload['status'] = InstanceStatus.PROVISIONING
+        responses.add(responses.GET, get_instance_url, json=payload, status=200)
+        # Third get instance by id - running
+        payload = copy.deepcopy(PAYLOAD[0])
+        payload['status'] = InstanceStatus.RUNNING
+        responses.add(responses.GET, get_instance_url, json=payload, status=200)
+
+        # act
+        instance = instances_service.create(
+            instance_type=INSTANCE_TYPE,
+            image=OS_VOLUME_ID,
+            hostname=INSTANCE_HOSTNAME,
+            description=INSTANCE_DESCRIPTION,
+            wait_for_status=wait_for_status,
+            max_interval=0,
+            max_wait_time=1,
+        )
+
+        # assert
+        assert isinstance(instance, Instance)
+        assert instance.id == INSTANCE_ID
+        assert instance.status == expected_status
+        assert responses.assert_call_count(endpoint, 1) is True
+        assert (
+            responses.assert_call_count(get_instance_url, expected_get_instance_call_count) is True
+        )
 
     def test_create_instance_failed(self, instances_service, endpoint):
         # arrange - add response mock
