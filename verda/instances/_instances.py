@@ -206,7 +206,7 @@ class InstancesService:
             payload['pricing'] = pricing
         id = self._http_client.post(INSTANCES_ENDPOINT, json=payload).text
 
-        if not wait_for_status:
+        if wait_for_status is None:
             return self.get_by_id(id)
 
         # Wait for instance to enter provisioning state with timeout
