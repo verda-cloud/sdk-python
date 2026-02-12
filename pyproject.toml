@@ -31,6 +31,8 @@ dev = [
     "python-dotenv>=1.1.1",
     "responses>=0.25.8",
     "ruff>=0.14.2",
+    "sphinx>=7.0.0",
+    "recommonmark>=0.7.1",
 ]
 
 [project.urls]
