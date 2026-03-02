@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.20.0] - 2025-02-05
+## [1.21.0] - 2026-03-02
+
+### Fixed
+
+- Fixed `verda.containers.get_compute_resources()`
+
+## [1.20.0] - 2026-02-05
 
 ### Added
 

@@ -540,7 +540,7 @@ class TestContainersService:
             responses.GET,
             compute_resources_endpoint,
             # Wrap in list to simulate resource groups
-            json=[COMPUTE_RESOURCES_DATA],
+            json=COMPUTE_RESOURCES_DATA,
             status=200,
         )
 
@@ -564,7 +564,7 @@ class TestContainersService:
         responses.add(
             responses.GET,
             compute_resources_endpoint,
-            json=[COMPUTE_RESOURCES_DATA],
+            json=COMPUTE_RESOURCES_DATA,
             status=200,
         )
 
@@ -588,7 +588,7 @@ class TestContainersService:
         responses.add(
             responses.GET,
             compute_resources_endpoint,
-            json=[COMPUTE_RESOURCES_DATA],
+            json=COMPUTE_RESOURCES_DATA,
             status=200,
         )
 
@@ -609,7 +609,7 @@ class TestContainersService:
         responses.add(
             responses.GET,
             compute_resources_endpoint,
-            json=[COMPUTE_RESOURCES_DATA],
+            json=COMPUTE_RESOURCES_DATA,
             status=200,
         )
 

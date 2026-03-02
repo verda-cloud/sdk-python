@@ -1001,9 +1001,8 @@ class ContainersService:
         """
         response = self.client.get(SERVERLESS_COMPUTE_RESOURCES_ENDPOINT)
         resources = []
-        for resource_group in response.json():
-            for resource in resource_group:
-                resources.append(ComputeResource.from_dict(resource))
+        for resource in response.json():
+            resources.append(ComputeResource.from_dict(resource))
         if size:
             resources = [r for r in resources if r.size == size]
         if is_available:
