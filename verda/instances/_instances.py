@@ -1,5 +1,6 @@
 import itertools
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -150,6 +151,7 @@ class InstancesService:
         pricing: Pricing | None = None,
         coupon: str | None = None,
         *,
+        wait_for_status: str | Callable[[str], bool] | None = lambda s: s != InstanceStatus.ORDERED,
         max_wait_time: float = 180,
         initial_interval: float = 0.5,
         max_interval: float = 5,
@@ -172,6 +174,7 @@ class InstancesService:
             contract: Optional contract type for the instance.
             pricing: Optional pricing model for the instance.
             coupon: Optional coupon code for discounts.
+            wait_for_status: Status to wait for the instance to reach, or callable that returns True when the desired status is reached. Default to any status other than ORDERED. If None, no wait is performed.
             max_wait_time: Maximum total wait for the instance to start provisioning, in seconds (default: 180)
             initial_interval: Initial interval, in seconds (default: 0.5)
             max_interval: The longest single delay allowed between retries, in seconds (default: 5)
@@ -203,12 +206,18 @@ class InstancesService:
             payload['pricing'] = pricing
         id = self._http_client.post(INSTANCES_ENDPOINT, json=payload).text
 
+        if wait_for_status is None:
+            return self.get_by_id(id)
+
         # Wait for instance to enter provisioning state with timeout
         # TODO(shamrin) extract backoff logic, _clusters module has the same code
         deadline = time.monotonic() + max_wait_time
         for i in itertools.count():
             instance = self.get_by_id(id)
-            if instance.status != InstanceStatus.ORDERED:
+            if callable(wait_for_status):
+                if wait_for_status(instance.status):
+                    return instance
+            elif instance.status == wait_for_status:
                 return instance
 
             now = time.monotonic()
