@@ -13,8 +13,8 @@ from verda.images import ImagesService
 from verda.instance_types import InstanceTypesService
 from verda.instances import InstancesService
 from verda.job_deployments import JobDeploymentsService
-from verda.long_term import LongTermService
 from verda.locations import LocationsService
+from verda.long_term import LongTermService
 from verda.ssh_keys import SSHKeysService
 from verda.startup_scripts import StartupScriptsService
 from verda.volume_types import VolumeTypesService
@@ -34,8 +34,8 @@ __all__ = [
     'InstanceTypesService',
     'InstancesService',
     'JobDeploymentsService',
-    'LongTermService',
     'LocationsService',
+    'LongTermService',
     'SSHKeysService',
     'StartupScriptsService',
     'VolumeTypesService',
