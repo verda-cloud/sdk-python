@@ -1,6 +1,7 @@
 from verda._version import __version__
 from verda.authentication import AuthenticationService
 from verda.balance import BalanceService
+from verda.cluster_types import ClusterTypesService
 from verda.clusters import ClustersService
 from verda.container_types import ContainerTypesService
 from verda.constants import Constants
@@ -86,6 +87,9 @@ class VerdaClient:
 
         self.clusters: ClustersService = ClustersService(self._http_client)
         """Clusters service. Create and manage compute clusters"""
+
+        self.cluster_types: ClusterTypesService = ClusterTypesService(self._http_client)
+        """Cluster types service. Get available cluster SKUs"""
 
 
 __all__ = ['VerdaClient']
