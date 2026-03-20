@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from typing import Literal
 
 from dataclasses_json import dataclass_json
 
-INSTANCE_TYPES_ENDPOINT = '/instance-types'
+from verda.constants import Currency
 
-Currency = Literal['usd', 'eur']
+INSTANCE_TYPES_ENDPOINT = '/instance-types'
 
 
 @dataclass_json
@@ -24,6 +23,17 @@ class InstanceType:
         memory: Instance type memory details.
         gpu_memory: Instance type GPU memory details.
         storage: Instance type storage details.
+        best_for: Suggested use cases for the instance type.
+        model: GPU model.
+        name: Human-readable instance type name.
+        p2p: Peer-to-peer interconnect bandwidth details.
+        currency: Currency used for pricing.
+        manufacturer: Hardware manufacturer.
+        display_name: Display name shown to users.
+        supported_os: Supported operating system images.
+        deploy_warning: Optional deployment warning returned by the API.
+        serverless_price: Optional serverless price for the same hardware profile.
+        serverless_spot_price: Optional serverless spot price for the same hardware profile.
     """
 
     id: str
@@ -45,8 +55,6 @@ class InstanceType:
     display_name: str
     supported_os: list[str]
     deploy_warning: str | None = None
-    dynamic_price: float | None = None
-    max_dynamic_price: float | None = None
     serverless_price: float | None = None
     serverless_spot_price: float | None = None
 
@@ -88,16 +96,6 @@ class InstanceTypesService:
                 display_name=instance_type['display_name'],
                 supported_os=instance_type['supported_os'],
                 deploy_warning=instance_type.get('deploy_warning'),
-                dynamic_price=(
-                    float(instance_type['dynamic_price'])
-                    if instance_type.get('dynamic_price') is not None
-                    else None
-                ),
-                max_dynamic_price=(
-                    float(instance_type['max_dynamic_price'])
-                    if instance_type.get('max_dynamic_price') is not None
-                    else None
-                ),
                 serverless_price=(
                     float(instance_type['serverless_price'])
                     if instance_type.get('serverless_price') is not None
@@ -113,7 +111,3 @@ class InstanceTypesService:
         ]
 
         return instance_type_objects
-
-    def get_price_history(self):
-        """Get the deprecated dynamic price history endpoint as raw JSON."""
-        return self._http_client.get(f'{INSTANCE_TYPES_ENDPOINT}/price-history').json()

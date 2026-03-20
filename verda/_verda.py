@@ -88,13 +88,13 @@ class VerdaClient:
         """Job deployments service. Deploy and manage serverless jobs"""
 
         self.container_types: ContainerTypesService = ContainerTypesService(self._http_client)
-        """Container types service. Get available serverless container SKUs"""
+        """Container types service. Get available serverless container info"""
 
         self.clusters: ClustersService = ClustersService(self._http_client)
         """Clusters service. Create and manage compute clusters"""
 
         self.cluster_types: ClusterTypesService = ClusterTypesService(self._http_client)
-        """Cluster types service. Get available cluster SKUs"""
+        """Cluster types service. Get available cluster info"""
 
         self.long_term: LongTermService = LongTermService(self._http_client)
         """Long-term service. Get available long-term pricing periods"""

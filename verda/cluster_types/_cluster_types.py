@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from typing import Literal
 
 from dataclasses_json import dataclass_json
 
-CLUSTER_TYPES_ENDPOINT = '/cluster-types'
+from verda.constants import Currency
 
-Currency = Literal['usd', 'eur']
+CLUSTER_TYPES_ENDPOINT = '/cluster-types'
 
 
 @dataclass_json

@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from typing import Literal
 
 from dataclasses_json import dataclass_json
 
-CONTAINER_TYPES_ENDPOINT = '/container-types'
+from verda.constants import Currency
 
-Currency = Literal['usd', 'eur']
+CONTAINER_TYPES_ENDPOINT = '/container-types'
 
 
 @dataclass_json

@@ -1,3 +1,8 @@
+from typing import Literal
+
+Currency = Literal['usd', 'eur']
+
+
 class Actions:
     """Instance actions."""
 

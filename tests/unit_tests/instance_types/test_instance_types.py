@@ -20,7 +20,6 @@ NAME = 'Tesla V100'
 P2P = '300 GB/s'
 PRICE_PER_HOUR = 5.0
 SPOT_PRICE_PER_HOUR = 2.5
-MAX_DYNAMIC_PRICE = 7.5
 SERVERLESS_PRICE = 1.25
 SERVERLESS_SPOT_PRICE = 0.75
 INSTANCE_TYPE = '8V100.48M'
@@ -28,8 +27,6 @@ CURRENCY = 'eur'
 MANUFACTURER = 'NVIDIA'
 DISPLAY_NAME = 'NVIDIA Tesla V100'
 SUPPORTED_OS = ['ubuntu-24.04-cuda-12.8-open-docker']
-
-PRICE_HISTORY_PAYLOAD = [{'date': '2024-01-01', 'price_per_hour': '2.00'}]
 
 
 @responses.activate
@@ -69,7 +66,6 @@ def test_instance_types(http_client):
                 'p2p': P2P,
                 'price_per_hour': '5.00',
                 'spot_price': '2.50',
-                'max_dynamic_price': '7.50',
                 'serverless_price': '1.25',
                 'serverless_spot_price': '0.75',
                 'instance_type': INSTANCE_TYPE,
@@ -106,7 +102,6 @@ def test_instance_types(http_client):
     assert instance_type.display_name == DISPLAY_NAME
     assert instance_type.supported_os == SUPPORTED_OS
     assert instance_type.deploy_warning == 'Use updated drivers'
-    assert instance_type.max_dynamic_price == MAX_DYNAMIC_PRICE
     assert instance_type.serverless_price == SERVERLESS_PRICE
     assert instance_type.serverless_spot_price == SERVERLESS_SPOT_PRICE
     assert isinstance(instance_type.cpu, dict)
@@ -123,22 +118,3 @@ def test_instance_types(http_client):
     assert instance_type.memory['size_in_gigabytes'] == MEMORY_SIZE
     assert instance_type.gpu_memory['size_in_gigabytes'] == GPU_MEMORY_SIZE
     assert instance_type.storage['size_in_gigabytes'] == STORAGE_SIZE
-
-
-@responses.activate
-def test_instance_type_price_history(http_client):
-    # arrange - add response mock
-    responses.add(
-        responses.GET,
-        http_client._base_url + '/instance-types/price-history',
-        json=PRICE_HISTORY_PAYLOAD,
-        status=200,
-    )
-
-    instance_types_service = InstanceTypesService(http_client)
-
-    # act
-    price_history = instance_types_service.get_price_history()
-
-    # assert
-    assert price_history == PRICE_HISTORY_PAYLOAD

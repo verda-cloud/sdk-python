@@ -2,23 +2,14 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
 
 from dataclasses_json import Undefined, dataclass_json
 
 from verda.containers import ComputeResource, Container, ContainerRegistrySettings
+from verda.helpers import strip_none_values
 from verda.http_client import HTTPClient
 
 JOB_DEPLOYMENTS_ENDPOINT = '/job-deployments'
-
-
-def _strip_none(data: Any) -> Any:
-    """Recursively remove None values from JSON-serializable data."""
-    if isinstance(data, dict):
-        return {key: _strip_none(value) for key, value in data.items() if value is not None}
-    if isinstance(data, list):
-        return [_strip_none(item) for item in data]
-    return data
 
 
 class JobDeploymentStatus(str, Enum):
@@ -85,7 +76,7 @@ class JobDeploymentsService:
         """Create a new job deployment."""
         response = self._http_client.post(
             JOB_DEPLOYMENTS_ENDPOINT,
-            json=_strip_none(deployment.to_dict()),
+            json=strip_none_values(deployment.to_dict()),
         )
         return JobDeployment.from_dict(response.json(), infer_missing=True)
 
@@ -93,7 +84,7 @@ class JobDeploymentsService:
         """Update an existing job deployment."""
         response = self._http_client.patch(
             f'{JOB_DEPLOYMENTS_ENDPOINT}/{job_name}',
-            json=_strip_none(deployment.to_dict()),
+            json=strip_none_values(deployment.to_dict()),
         )
         return JobDeployment.from_dict(response.json(), infer_missing=True)
 
