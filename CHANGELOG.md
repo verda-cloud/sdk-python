@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `verda.instances.create(wait_for_status=...)`. Supplying `wait_for_status=None` would return without waiting.
+
+## [1.22.0] - 2026-03-20
+
+### Added
+
 - Job deployments (Batch jobs) service
 - Container types
 - Cluster types
