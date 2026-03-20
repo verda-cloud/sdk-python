@@ -16,6 +16,7 @@ response_json = {
 
 
 class TestVerdaClient:
+    @responses.activate
     def test_client(self):
         # arrange - add response mock
         responses.add(responses.POST, BASE_URL + '/oauth2/token', json=response_json, status=200)
@@ -25,7 +26,11 @@ class TestVerdaClient:
 
         # assert
         assert client.constants.base_url == BASE_URL
+        assert hasattr(client, 'container_types')
+        assert hasattr(client, 'cluster_types')
+        assert hasattr(client, 'job_deployments')
 
+    @responses.activate
     def test_client_with_default_base_url(self):
         # arrange - add response mock
         DEFAULT_BASE_URL = 'https://api.verda.com/v1'
@@ -42,6 +47,7 @@ class TestVerdaClient:
         # assert
         assert client.constants.base_url == DEFAULT_BASE_URL
 
+    @responses.activate
     def test_invalid_client_credentials(self):
         # arrange - add response mock
         responses.add(

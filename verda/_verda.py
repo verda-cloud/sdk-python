@@ -1,13 +1,16 @@
 from verda._version import __version__
 from verda.authentication import AuthenticationService
 from verda.balance import BalanceService
+from verda.cluster_types import ClusterTypesService
 from verda.clusters import ClustersService
 from verda.constants import Constants
+from verda.container_types import ContainerTypesService
 from verda.containers import ContainersService
 from verda.http_client import HTTPClient
 from verda.images import ImagesService
 from verda.instance_types import InstanceTypesService
 from verda.instances import InstancesService
+from verda.job_deployments import JobDeploymentsService
 from verda.locations import LocationsService
 from verda.ssh_keys import SSHKeysService
 from verda.startup_scripts import StartupScriptsService
@@ -80,8 +83,17 @@ class VerdaClient:
         self.containers: ContainersService = ContainersService(self._http_client, inference_key)
         """Containers service. Deploy, manage, and monitor container deployments"""
 
+        self.job_deployments: JobDeploymentsService = JobDeploymentsService(self._http_client)
+        """Job deployments service. Deploy and manage serverless jobs"""
+
+        self.container_types: ContainerTypesService = ContainerTypesService(self._http_client)
+        """Container types service. Get available serverless container info"""
+
         self.clusters: ClustersService = ClustersService(self._http_client)
         """Clusters service. Create and manage compute clusters"""
+
+        self.cluster_types: ClusterTypesService = ClusterTypesService(self._http_client)
+        """Cluster types service. Get available cluster info"""
 
 
 __all__ = ['VerdaClient']

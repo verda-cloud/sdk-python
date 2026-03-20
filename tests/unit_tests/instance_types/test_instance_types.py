@@ -14,23 +14,36 @@ GPU_MEMORY_SIZE = 128
 STORAGE_DESCRIPTION = '1800GB NVME'
 STORAGE_SIZE = 1800
 INSTANCE_TYPE_DESCRIPTION = 'Dedicated Bare metal Server'
+BEST_FOR = ['Large model inference', 'Multi-GPU training']
+MODEL = 'V100'
+NAME = 'Tesla V100'
+P2P = '300 GB/s'
 PRICE_PER_HOUR = 5.0
 SPOT_PRICE_PER_HOUR = 2.5
+SERVERLESS_PRICE = 1.25
+SERVERLESS_SPOT_PRICE = 0.75
 INSTANCE_TYPE = '8V100.48M'
+CURRENCY = 'eur'
+MANUFACTURER = 'NVIDIA'
+DISPLAY_NAME = 'NVIDIA Tesla V100'
+SUPPORTED_OS = ['ubuntu-24.04-cuda-12.8-open-docker']
 
 
+@responses.activate
 def test_instance_types(http_client):
     # arrange - add response mock
     responses.add(
         responses.GET,
-        http_client._base_url + '/instance-types',
+        http_client._base_url + '/instance-types?currency=eur',
         json=[
             {
                 'id': TYPE_ID,
+                'best_for': BEST_FOR,
                 'cpu': {
                     'description': CPU_DESCRIPTION,
                     'number_of_cores': NUMBER_OF_CORES,
                 },
+                'deploy_warning': 'Use updated drivers',
                 'gpu': {
                     'description': GPU_DESCRIPTION,
                     'number_of_gpus': NUMBER_OF_GPUS,
@@ -48,9 +61,18 @@ def test_instance_types(http_client):
                     'size_in_gigabytes': STORAGE_SIZE,
                 },
                 'description': INSTANCE_TYPE_DESCRIPTION,
+                'model': MODEL,
+                'name': NAME,
+                'p2p': P2P,
                 'price_per_hour': '5.00',
                 'spot_price': '2.50',
+                'serverless_price': '1.25',
+                'serverless_spot_price': '0.75',
                 'instance_type': INSTANCE_TYPE,
+                'currency': CURRENCY,
+                'manufacturer': MANUFACTURER,
+                'display_name': DISPLAY_NAME,
+                'supported_os': SUPPORTED_OS,
             }
         ],
         status=200,
@@ -59,7 +81,7 @@ def test_instance_types(http_client):
     instance_types_service = InstanceTypesService(http_client)
 
     # act
-    instance_types = instance_types_service.get()
+    instance_types = instance_types_service.get(currency='eur')
     instance_type = instance_types[0]
 
     # assert
@@ -71,6 +93,17 @@ def test_instance_types(http_client):
     assert instance_type.price_per_hour == PRICE_PER_HOUR
     assert instance_type.spot_price_per_hour == SPOT_PRICE_PER_HOUR
     assert instance_type.instance_type == INSTANCE_TYPE
+    assert instance_type.best_for == BEST_FOR
+    assert instance_type.model == MODEL
+    assert instance_type.name == NAME
+    assert instance_type.p2p == P2P
+    assert instance_type.currency == CURRENCY
+    assert instance_type.manufacturer == MANUFACTURER
+    assert instance_type.display_name == DISPLAY_NAME
+    assert instance_type.supported_os == SUPPORTED_OS
+    assert instance_type.deploy_warning == 'Use updated drivers'
+    assert instance_type.serverless_price == SERVERLESS_PRICE
+    assert instance_type.serverless_spot_price == SERVERLESS_SPOT_PRICE
     assert isinstance(instance_type.cpu, dict)
     assert isinstance(instance_type.gpu, dict)
     assert isinstance(instance_type.memory, dict)
