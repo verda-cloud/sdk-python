@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `LongTermService` with `get_cluster_periods()` and `get_instance_periods()` methods
+- `VolumesService.delete_by_id()` method using `DELETE /v1/volumes/{volume_id}` endpoint
+
 ## [1.22.0] - 2026-03-20
 
 ### Added

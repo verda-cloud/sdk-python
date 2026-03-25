@@ -8,6 +8,7 @@ from verda.container_types import ContainerTypesService
 from verda.containers import ContainersService
 from verda.http_client import HTTPClient
 from verda.images import ImagesService
+from verda.long_term import LongTermService
 from verda.instance_types import InstanceTypesService
 from verda.instances import InstancesService
 from verda.job_deployments import JobDeploymentsService
@@ -94,6 +95,9 @@ class VerdaClient:
 
         self.cluster_types: ClusterTypesService = ClusterTypesService(self._http_client)
         """Cluster types service. Get available cluster info"""
+
+        self.long_term: LongTermService = LongTermService(self._http_client)
+        """Long-term service. Get available commitment periods"""
 
 
 __all__ = ['VerdaClient']

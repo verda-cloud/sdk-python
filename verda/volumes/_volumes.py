@@ -368,6 +368,18 @@ class VolumesService:
         self._http_client.put(VOLUMES_ENDPOINT, json=payload)
         return
 
+    def delete_by_id(self, volume_id: str, is_permanent: bool = False) -> None:
+        """Delete a single volume by id using the DELETE endpoint.
+
+        :param volume_id: volume id
+        :type volume_id: str
+        :param is_permanent: if True, volume is removed permanently; if False, moves to trash
+        :type is_permanent: bool, optional
+        """
+        payload = {'is_permanent': is_permanent}
+        self._http_client.delete(VOLUMES_ENDPOINT + f'/{volume_id}', json=payload)
+        return
+
     def delete(self, id_list: list[str] | str, is_permanent: bool = False) -> None:
         """Delete multiple volumes or single volume.
 

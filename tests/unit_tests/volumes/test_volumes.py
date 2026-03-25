@@ -506,6 +506,63 @@ class TestVolumesService:
         assert excinfo.value.message == INVALID_REQUEST_MESSAGE
         assert responses.assert_call_count(endpoint, 1) is True
 
+    def test_delete_volume_by_id_successful(self, volumes_service, endpoint):
+        # arrange
+        url = endpoint + '/' + NVME_VOL_ID
+        responses.add(
+            responses.DELETE,
+            url,
+            status=202,
+            match=[
+                matchers.json_params_matcher({'is_permanent': False})
+            ],
+        )
+
+        # act
+        result = volumes_service.delete_by_id(NVME_VOL_ID)
+
+        # assert
+        assert result is None
+        assert responses.assert_call_count(url, 1) is True
+
+    def test_delete_volume_by_id_permanent_successful(self, volumes_service, endpoint):
+        # arrange
+        url = endpoint + '/' + NVME_VOL_ID
+        responses.add(
+            responses.DELETE,
+            url,
+            status=202,
+            match=[
+                matchers.json_params_matcher({'is_permanent': True})
+            ],
+        )
+
+        # act
+        result = volumes_service.delete_by_id(NVME_VOL_ID, is_permanent=True)
+
+        # assert
+        assert result is None
+        assert responses.assert_call_count(url, 1) is True
+
+    def test_delete_volume_by_id_failed(self, volumes_service, endpoint):
+        # arrange
+        url = endpoint + '/' + NVME_VOL_ID
+        responses.add(
+            responses.DELETE,
+            url,
+            json={'code': INVALID_REQUEST, 'message': INVALID_REQUEST_MESSAGE},
+            status=400,
+        )
+
+        # act
+        with pytest.raises(APIException) as excinfo:
+            volumes_service.delete_by_id(NVME_VOL_ID)
+
+        # assert
+        assert excinfo.value.code == INVALID_REQUEST
+        assert excinfo.value.message == INVALID_REQUEST_MESSAGE
+        assert responses.assert_call_count(url, 1) is True
+
     def test_clone_volume_with_input_name_successful(self, volumes_service, endpoint):
         # arrange
         CLONED_VOLUME_NAME = 'cloned-volume'
