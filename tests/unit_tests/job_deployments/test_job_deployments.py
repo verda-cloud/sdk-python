@@ -1,9 +1,8 @@
 import json
+from dataclasses import replace
 
 import pytest
 import responses  # https://github.com/getsentry/responses
-
-from dataclasses import replace
 
 from verda.containers import ComputeResource, Container, ContainerRegistrySettings
 from verda.containers._containers import (
