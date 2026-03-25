@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.22.0] - 2026-03-20
+### Fixed
+
+- Fixed volume mount fields (`volume_id`, `secret_name`, `file_names`, `size_in_mb`) being silently dropped during deserialization, causing deployment updates to fail with `volume_mounts.*.volume_id should not be null or undefined`
+
+## [1.23.0] - 2026-03-20
 
 ### Added
 

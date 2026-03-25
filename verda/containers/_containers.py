@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from dataclasses_json import Undefined, dataclass_json  # type: ignore
+from dataclasses_json import Undefined, config, dataclass_json  # type: ignore
 
 from verda.http_client import HTTPClient
 from verda.inference_client import InferenceClient, InferenceResponse
@@ -203,6 +203,29 @@ class SharedFileSystemMount(VolumeMount):
         self.volume_id = volume_id
 
 
+def _decode_volume_mount(data: dict) -> VolumeMount:
+    """Decode a volume mount dict into the correct VolumeMount subclass based on type."""
+    mount_type = data.get('type')
+    if mount_type == VolumeMountType.SHARED or mount_type == 'shared':
+        return SharedFileSystemMount(mount_path=data['mount_path'], volume_id=data['volume_id'])
+    if mount_type == VolumeMountType.SECRET or mount_type == 'secret':
+        return SecretMount(
+            mount_path=data['mount_path'],
+            secret_name=data['secret_name'],
+            file_names=data.get('file_names'),
+        )
+    if mount_type == VolumeMountType.MEMORY or mount_type == 'memory':
+        return MemoryMount(size_in_mb=data['size_in_mb'])
+    return GeneralStorageMount(mount_path=data['mount_path'])
+
+
+def _decode_volume_mounts(data: list[dict] | None) -> list[VolumeMount] | None:
+    """Decode a list of volume mount dicts into the correct VolumeMount subclasses."""
+    if not data:
+        return None
+    return [_decode_volume_mount(v) for v in data]
+
+
 @dataclass_json
 @dataclass
 class Container:
@@ -224,7 +247,9 @@ class Container:
     healthcheck: HealthcheckSettings | None = None
     entrypoint_overrides: EntrypointOverridesSettings | None = None
     env: list[EnvVar] | None = None
-    volume_mounts: list[VolumeMount] | None = None
+    volume_mounts: list[VolumeMount] | None = field(
+        default=None, metadata=config(decoder=_decode_volume_mounts)
+    )
 
 
 @dataclass_json
