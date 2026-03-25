@@ -3,7 +3,15 @@ import json
 import pytest
 import responses  # https://github.com/getsentry/responses
 
+from dataclasses import replace
+
 from verda.containers import ComputeResource, Container, ContainerRegistrySettings
+from verda.containers._containers import (
+    GeneralStorageMount,
+    MemoryMount,
+    SecretMount,
+    SharedFileSystemMount,
+)
 from verda.exceptions import APIException
 from verda.job_deployments import (
     JobDeployment,
@@ -207,3 +215,71 @@ class TestJobDeploymentsService:
         service.purge_queue(JOB_NAME)
 
         assert responses.assert_call_count(url, 1) is True
+
+    @responses.activate
+    def test_update_preserves_volume_mounts_round_trip(self, service, endpoint):
+        """Regression test: volume mount subclass fields (volume_id, secret_name, etc.)
+        must survive a get → update round trip without being dropped during deserialization."""
+        volume_id = '550e8400-e29b-41d4-a716-446655440000'
+        api_payload = {
+            'name': JOB_NAME,
+            'containers': [
+                {
+                    'name': CONTAINER_NAME,
+                    'image': 'busybox:latest',
+                    'exposed_port': 8080,
+                    'env': [],
+                    'volume_mounts': [
+                        {'type': 'scratch', 'mount_path': '/data'},
+                        {'type': 'shared', 'mount_path': '/sfs', 'volume_id': volume_id},
+                        {
+                            'type': 'secret',
+                            'mount_path': '/secrets',
+                            'secret_name': 'my-secret',
+                            'file_names': ['key.pem'],
+                        },
+                        {'type': 'memory', 'mount_path': '/dev/shm', 'size_in_mb': 512},
+                    ],
+                }
+            ],
+            'endpoint_base_url': 'https://test-job.datacrunch.io',
+            'created_at': '2024-01-01T00:00:00Z',
+            'compute': {'name': 'H100', 'size': 1},
+            'container_registry_settings': {'is_private': False, 'credentials': None},
+        }
+
+        get_url = f'{endpoint}/{JOB_NAME}'
+        responses.add(responses.GET, get_url, json=api_payload, status=200)
+        responses.add(responses.PATCH, get_url, json=api_payload, status=200)
+
+        # Simulate the user's flow: get → modify image → update
+        deployment = service.get_by_name(JOB_NAME)
+
+        # Verify deserialization produced the correct subclasses
+        vms = deployment.containers[0].volume_mounts
+        assert isinstance(vms[0], GeneralStorageMount)
+        assert isinstance(vms[1], SharedFileSystemMount)
+        assert vms[1].volume_id == volume_id
+        assert isinstance(vms[2], SecretMount)
+        assert vms[2].secret_name == 'my-secret'
+        assert vms[2].file_names == ['key.pem']
+        assert isinstance(vms[3], MemoryMount)
+        assert vms[3].size_in_mb == 512
+
+        # Update only the image (exactly what the reported user script does)
+        containers = list(deployment.containers)
+        containers[0] = replace(containers[0], image='busybox:v2')
+        updated_deployment = replace(deployment, containers=containers)
+
+        service.update(JOB_NAME, updated_deployment)
+
+        # Verify the PATCH request body still contains volume_id
+        request_body = json.loads(responses.calls[1].request.body.decode('utf-8'))
+        sent_vms = request_body['containers'][0]['volume_mounts']
+        assert sent_vms[0]['type'] == 'scratch'
+        assert sent_vms[1]['type'] == 'shared'
+        assert sent_vms[1]['volume_id'] == volume_id
+        assert sent_vms[2]['type'] == 'secret'
+        assert sent_vms[2]['secret_name'] == 'my-secret'
+        assert sent_vms[3]['type'] == 'memory'
+        assert sent_vms[3]['size_in_mb'] == 512
