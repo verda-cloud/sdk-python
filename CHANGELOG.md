@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added missing fields to the `Volume` class: `pseudo_path`, `mount_command`, `create_directory_command`, `filesystem_to_fstab_command`, `instances`, `contract`, `base_hourly_cost`, `monthly_price`, `currency`, `long_term`
+
 ## [1.23.1] - 2026-03-25
 
 ### Fixed
