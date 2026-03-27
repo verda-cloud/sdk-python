@@ -21,6 +21,16 @@ class Volume:
         instance_id: str | None = None,
         ssh_key_ids: list[str] = [],
         deleted_at: str | None = None,
+        pseudo_path: str | None = None,
+        mount_command: str | None = None,
+        create_directory_command: str | None = None,
+        filesystem_to_fstab_command: str | None = None,
+        instances: list[dict] | None = None,
+        contract: str | None = None,
+        base_hourly_cost: float | None = None,
+        monthly_price: float | None = None,
+        currency: str | None = None,
+        long_term: dict | None = None,
     ) -> None:
         """Initialize the volume object.
 
@@ -48,6 +58,26 @@ class Volume:
         :type ssh_key_ids: list[str]
         :param deleted_at: the time the volume was deleted (UTC), defaults to None
         :type deleted_at: str, optional
+        :param pseudo_path: volume pseudo path for NFS export, defaults to None
+        :type pseudo_path: str, optional
+        :param mount_command: ready-to-use NFS mount command, defaults to None
+        :type mount_command: str, optional
+        :param create_directory_command: mkdir command for mount point, defaults to None
+        :type create_directory_command: str, optional
+        :param filesystem_to_fstab_command: fstab entry command for persistent mounts, defaults to None
+        :type filesystem_to_fstab_command: str, optional
+        :param instances: list of attached instance details, defaults to None
+        :type instances: list[dict], optional
+        :param contract: volume contract type e.g. "LONG_TERM", "PAY_AS_YOU_GO", defaults to None
+        :type contract: str, optional
+        :param base_hourly_cost: volume base hourly cost, defaults to None
+        :type base_hourly_cost: float, optional
+        :param monthly_price: volume monthly price, defaults to None
+        :type monthly_price: float, optional
+        :param currency: volume currency e.g. "usd", "eur", defaults to None
+        :type currency: str, optional
+        :param long_term: long term contract details, defaults to None
+        :type long_term: dict, optional
         """
         self._id = id
         self._status = status
@@ -61,6 +91,16 @@ class Volume:
         self._instance_id = instance_id
         self._ssh_key_ids = ssh_key_ids
         self._deleted_at = deleted_at
+        self._pseudo_path = pseudo_path
+        self._mount_command = mount_command
+        self._create_directory_command = create_directory_command
+        self._filesystem_to_fstab_command = filesystem_to_fstab_command
+        self._instances = instances
+        self._contract = contract
+        self._base_hourly_cost = base_hourly_cost
+        self._monthly_price = monthly_price
+        self._currency = currency
+        self._long_term = long_term
 
     @property
     def id(self) -> str:
@@ -170,6 +210,96 @@ class Volume:
         """
         return self._deleted_at
 
+    @property
+    def pseudo_path(self) -> str | None:
+        """Get the volume pseudo path for NFS export.
+
+        :return: volume pseudo path
+        :rtype: str, optional
+        """
+        return self._pseudo_path
+
+    @property
+    def mount_command(self) -> str | None:
+        """Get the ready-to-use NFS mount command.
+
+        :return: mount command
+        :rtype: str, optional
+        """
+        return self._mount_command
+
+    @property
+    def create_directory_command(self) -> str | None:
+        """Get the mkdir command for creating the mount point directory.
+
+        :return: create directory command
+        :rtype: str, optional
+        """
+        return self._create_directory_command
+
+    @property
+    def filesystem_to_fstab_command(self) -> str | None:
+        """Get the fstab entry command for persistent mounts.
+
+        :return: fstab command
+        :rtype: str, optional
+        """
+        return self._filesystem_to_fstab_command
+
+    @property
+    def instances(self) -> list[dict] | None:
+        """Get the list of attached instance details.
+
+        :return: list of instance details
+        :rtype: list[dict], optional
+        """
+        return self._instances
+
+    @property
+    def contract(self) -> str | None:
+        """Get the volume contract type.
+
+        :return: contract type e.g. "LONG_TERM", "PAY_AS_YOU_GO"
+        :rtype: str, optional
+        """
+        return self._contract
+
+    @property
+    def base_hourly_cost(self) -> float | None:
+        """Get the volume base hourly cost.
+
+        :return: base hourly cost
+        :rtype: float, optional
+        """
+        return self._base_hourly_cost
+
+    @property
+    def monthly_price(self) -> float | None:
+        """Get the volume monthly price.
+
+        :return: monthly price
+        :rtype: float, optional
+        """
+        return self._monthly_price
+
+    @property
+    def currency(self) -> str | None:
+        """Get the volume currency.
+
+        :return: currency e.g. "usd", "eur"
+        :rtype: str, optional
+        """
+        return self._currency
+
+    @property
+    def long_term(self) -> dict | None:
+        """Get the long term contract details.
+
+        :return: long term contract details
+        :rtype: dict, optional
+        """
+        return self._long_term
+
     @classmethod
     def create_from_dict(cls: 'Volume', volume_dict: dict) -> 'Volume':
         """Create a Volume object from a dictionary.
@@ -192,6 +322,16 @@ class Volume:
             instance_id=volume_dict['instance_id'],
             ssh_key_ids=volume_dict['ssh_key_ids'],
             deleted_at=volume_dict.get('deleted_at'),
+            pseudo_path=volume_dict.get('pseudo_path'),
+            mount_command=volume_dict.get('mount_command'),
+            create_directory_command=volume_dict.get('create_directory_command'),
+            filesystem_to_fstab_command=volume_dict.get('filesystem_to_fstab_command'),
+            instances=volume_dict.get('instances'),
+            contract=volume_dict.get('contract'),
+            base_hourly_cost=volume_dict.get('base_hourly_cost'),
+            monthly_price=volume_dict.get('monthly_price'),
+            currency=volume_dict.get('currency'),
+            long_term=volume_dict.get('long_term'),
         )
 
     def __str__(self) -> str:
