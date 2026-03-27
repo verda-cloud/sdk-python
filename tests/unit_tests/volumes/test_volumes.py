@@ -49,7 +49,7 @@ NVME_VOLUME = {
     'is_os_volume': True,
     'created_at': NVME_VOL_CREATED_AT,
     'target': TARGET_VDA,
-    'ssh_key_ids': SSH_KEY_ID,
+    'ssh_key_ids': [SSH_KEY_ID],
     'pseudo_path': 'volume-nxC2tf9F',
     'mount_command': 'mount -t nfs -o nconnect=16 nfs.fin-01.datacrunch.io:volume-nxC2tf9F /mnt/volume',
     'create_directory_command': 'mkdir -p /mnt/volume',
@@ -108,13 +108,13 @@ class TestVolumesService:
 
     def test_initialize_a_volume(self):
         volume = Volume(
-            RANDOM_VOL_ID,
-            VolumeStatus.DETACHED,
-            HDD_VOL_NAME,
-            HDD_VOL_SIZE,
-            HDD,
-            False,
-            HDD_VOL_CREATED_AT,
+            id=RANDOM_VOL_ID,
+            status=VolumeStatus.DETACHED,
+            name=HDD_VOL_NAME,
+            size=HDD_VOL_SIZE,
+            type=HDD,
+            is_os_volume=False,
+            created_at=HDD_VOL_CREATED_AT,
         )
 
         assert volume.id == RANDOM_VOL_ID
@@ -129,8 +129,8 @@ class TestVolumesService:
         assert volume.target is None
         assert volume.ssh_key_ids == []
 
-    def test_create_from_dict_without_new_fields(self):
-        """Test that create_from_dict handles API responses missing the new fields."""
+    def test_from_dict_without_optional_fields(self):
+        """Test that from_dict handles API responses missing optional fields."""
         minimal_dict = {
             'id': RANDOM_VOL_ID,
             'status': VolumeStatus.DETACHED,
@@ -144,7 +144,7 @@ class TestVolumesService:
             'instance_id': None,
             'ssh_key_ids': [],
         }
-        volume = Volume.create_from_dict(minimal_dict)
+        volume = Volume.from_dict(minimal_dict, infer_missing=True)
         assert volume.id == RANDOM_VOL_ID
         assert volume.pseudo_path is None
         assert volume.mount_command is None
@@ -181,7 +181,7 @@ class TestVolumesService:
         assert volume_nvme.is_os_volume
         assert volume_nvme.created_at == NVME_VOL_CREATED_AT
         assert volume_nvme.target == TARGET_VDA
-        assert volume_nvme.ssh_key_ids == SSH_KEY_ID
+        assert volume_nvme.ssh_key_ids == [SSH_KEY_ID]
         assert volume_nvme.pseudo_path == NVME_VOLUME['pseudo_path']
         assert volume_nvme.mount_command == NVME_VOLUME['mount_command']
         assert volume_nvme.create_directory_command == NVME_VOLUME['create_directory_command']

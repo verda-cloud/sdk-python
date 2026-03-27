@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added missing fields to the `Volume` class: `pseudo_path`, `mount_command`, `create_directory_command`, `filesystem_to_fstab_command`, `instances`, `contract`, `base_hourly_cost`, `monthly_price`, `currency`, `long_term`
 
+### Changed
+
+- Refactored `Volume` class to use `@dataclass` and `@dataclass_json` for consistency with `Instance` class. `Volume.create_from_dict()` is replaced by `Volume.from_dict()`; unknown API fields are now silently ignored via `Undefined.EXCLUDE`
+
 ## [1.23.1] - 2026-03-25
 
 ### Fixed
