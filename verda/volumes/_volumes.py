@@ -67,7 +67,7 @@ class Volume:
 
         .. deprecated:: Use :meth:`from_dict` instead.
         """
-        return cls.from_dict(volume_dict, infer_missing=True)
+        return cls.from_dict(volume_dict)
 
 
 class VolumesService:
@@ -85,7 +85,7 @@ class VolumesService:
         :rtype: list[Volume]
         """
         volumes_dict = self._http_client.get(VOLUMES_ENDPOINT, params={'status': status}).json()
-        return [Volume.from_dict(v, infer_missing=True) for v in volumes_dict]
+        return [Volume.from_dict(v) for v in volumes_dict]
 
     def get_by_id(self, id: str) -> Volume:
         """Get a specific volume by its.
@@ -97,7 +97,7 @@ class VolumesService:
         """
         volume_dict = self._http_client.get(VOLUMES_ENDPOINT + f'/{id}').json()
 
-        return Volume.from_dict(volume_dict, infer_missing=True)
+        return Volume.from_dict(volume_dict)
 
     def get_in_trash(self) -> list[Volume]:
         """Get all volumes that are in trash.
@@ -107,7 +107,7 @@ class VolumesService:
         """
         volumes_dicts = self._http_client.get(VOLUMES_ENDPOINT + '/trash').json()
 
-        return [Volume.from_dict(v, infer_missing=True) for v in volumes_dicts]
+        return [Volume.from_dict(v) for v in volumes_dicts]
 
     def create(
         self,

@@ -144,7 +144,7 @@ class TestVolumesService:
             'instance_id': None,
             'ssh_key_ids': [],
         }
-        volume = Volume.from_dict(minimal_dict, infer_missing=True)
+        volume = Volume.from_dict(minimal_dict)
         assert volume.id == RANDOM_VOL_ID
         assert volume.pseudo_path is None
         assert volume.mount_command is None
