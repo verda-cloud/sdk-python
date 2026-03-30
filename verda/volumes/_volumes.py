@@ -60,7 +60,6 @@ class Volume:
     currency: str | None = None
     long_term: dict | None = None
 
-
     @classmethod
     def create_from_dict(cls, volume_dict: dict) -> 'Volume':
         """Create a Volume object from a dictionary.
