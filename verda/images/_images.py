@@ -22,6 +22,9 @@ class Image:
     image_type: str
     details: list[str]
 
+    def __str__(self) -> str:
+        return self.to_json(indent=2)
+
 
 class ImagesService:
     """A service for interacting with the images endpoint."""

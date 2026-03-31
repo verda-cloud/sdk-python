@@ -1,3 +1,5 @@
+import json
+
 import responses  # https://github.com/getsentry/responses
 from responses import matchers
 
@@ -35,6 +37,7 @@ def test_images(http_client):
     assert isinstance(images[0].details, list)
     assert images[0].details[0] == 'Ubuntu 20.04'
     assert images[0].details[1] == 'CUDA 11.0'
+    assert json.loads(str(images[0])) == IMAGE_RESPONSE
 
 
 def test_images_filter_by_instance_type(http_client):
