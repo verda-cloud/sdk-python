@@ -1,71 +1,26 @@
-from verda.helpers import stringify_class_object_properties
+from dataclasses import dataclass
+
+from dataclasses_json import Undefined, dataclass_json
 
 IMAGES_ENDPOINT = '/images'
 
 
+@dataclass_json(undefined=Undefined.EXCLUDE)
+@dataclass
 class Image:
-    """An image model class."""
+    """Represents an OS image available for instances.
 
-    def __init__(self, id: str, name: str, image_type: str, details: list[str]) -> None:
-        """Initialize an image object.
+    Attributes:
+        id: Unique identifier for the image.
+        name: Human-readable name of the image.
+        image_type: Image type identifier, e.g. 'ubuntu-20.04-cuda-11.0'.
+        details: List of additional image details.
+    """
 
-        :param id: image id
-        :type id: str
-        :param name: image name
-        :type name: str
-        :param image_type: image type, e.g. 'ubuntu-20.04-cuda-11.0'
-        :type image_type: str
-        :param details: image details
-        :type details: list[str]
-        """
-        self._id = id
-        self._name = name
-        self._image_type = image_type
-        self._details = details
-
-    @property
-    def id(self) -> str:
-        """Get the image id.
-
-        :return: image id
-        :rtype: str
-        """
-        return self._id
-
-    @property
-    def name(self) -> str:
-        """Get the image name.
-
-        :return: image name
-        :rtype: str
-        """
-        return self._name
-
-    @property
-    def image_type(self) -> str:
-        """Get the image type.
-
-        :return: image type
-        :rtype: str
-        """
-        return self._image_type
-
-    @property
-    def details(self) -> list[str]:
-        """Get the image details.
-
-        :return: image details
-        :rtype: list[str]
-        """
-        return self._details
-
-    def __str__(self) -> str:
-        """Returns a string of the json representation of the image.
-
-        :return: json representation of the image
-        :rtype: str
-        """
-        return stringify_class_object_properties(self)
+    id: str
+    name: str
+    image_type: str
+    details: list[str]
 
 
 class ImagesService:
@@ -74,15 +29,16 @@ class ImagesService:
     def __init__(self, http_client) -> None:
         self._http_client = http_client
 
-    def get(self) -> list[Image]:
+    def get(self, instance_type: str | None = None) -> list[Image]:
         """Get the available instance images.
 
-        :return: list of images objects
-        :rtype: list[Image]
+        Args:
+            instance_type: Filter OS images by instance type, e.g. '1A100.22V'.
+                Default is all instance images.
+
+        Returns:
+            List of Image objects.
         """
-        images = self._http_client.get(IMAGES_ENDPOINT).json()
-        image_objects = [
-            Image(image['id'], image['name'], image['image_type'], image['details'])
-            for image in images
-        ]
-        return image_objects
+        params = {'instance_type': instance_type} if instance_type else None
+        images = self._http_client.get(IMAGES_ENDPOINT, params=params).json()
+        return [Image.from_dict(image) for image in images]
