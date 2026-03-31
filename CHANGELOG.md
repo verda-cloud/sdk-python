@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for querying OS images by instance type via `verda.images.get(instance_type=...)`
+
+### Changed
+
+- Refactored `Image` model to use `@dataclass` and `@dataclass_json` for consistency with `Instance` and `Volume`
+
 ## [1.24.0] - 2026-03-30
 
 ### Added
