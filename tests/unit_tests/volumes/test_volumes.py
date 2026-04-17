@@ -579,9 +579,7 @@ class TestVolumesService:
             responses.DELETE,
             url,
             status=202,
-            match=[
-                matchers.json_params_matcher({'is_permanent': False})
-            ],
+            match=[matchers.json_params_matcher({'is_permanent': False})],
         )
 
         # act
@@ -598,9 +596,7 @@ class TestVolumesService:
             responses.DELETE,
             url,
             status=202,
-            match=[
-                matchers.json_params_matcher({'is_permanent': True})
-            ],
+            match=[matchers.json_params_matcher({'is_permanent': True})],
         )
 
         # act
