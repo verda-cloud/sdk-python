@@ -253,6 +253,7 @@ class Container:
         entrypoint_overrides: Optional entrypoint override settings.
         env: Optional list of environment variables.
         volume_mounts: Optional list of volume mounts.
+        should_use_cached_image: Whether to use a cached image for faster startup.
     """
 
     image: str | dict
@@ -264,6 +265,7 @@ class Container:
     volume_mounts: list[VolumeMount] | None = field(
         default=None, metadata=config(decoder=_decode_volume_mounts)
     )
+    should_use_cached_image: bool | None = None
 
 
 @dataclass_json
@@ -575,11 +577,17 @@ class ReplicaInfo:
         id: Unique identifier of the replica.
         status: Current status of the replica.
         started_at: Timestamp when the replica was started.
+        image: Full image reference used by the replica.
+        image_name: Image name without tag.
+        image_tag: Image tag.
     """
 
     id: str
     status: str
     started_at: str
+    image: str | None = None
+    image_name: str | None = None
+    image_tag: str | None = None
 
 
 @dataclass_json
