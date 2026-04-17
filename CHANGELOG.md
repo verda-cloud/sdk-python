@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `VolumesService.delete_by_id()` method using `DELETE /v1/volumes/{volume_id}` endpoint
 - Support for querying OS images by instance type via `verda.images.get(instance_type=...)`
 - Apache 2.0 license headers to all source files
+- `Container.should_use_cached_image` field for faster container startup via cached images
+- `ReplicaInfo.image`, `ReplicaInfo.image_name`, `ReplicaInfo.image_tag` fields for per-replica image details
+- `JobDeployment.created_by_user_id` and `JobDeploymentSummary.created_by_user_id` fields
 
 ### Changed
 

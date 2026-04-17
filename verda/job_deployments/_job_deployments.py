@@ -52,6 +52,7 @@ class JobDeploymentSummary:
     name: str
     created_at: str
     compute: ComputeResource
+    created_by_user_id: str | None = None
 
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
@@ -68,6 +69,7 @@ class JobDeployment:
     )
     endpoint_base_url: str | None = None
     created_at: str | None = None
+    created_by_user_id: str | None = None
 
 
 class JobDeploymentsService:
