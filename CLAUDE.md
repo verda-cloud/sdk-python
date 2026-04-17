@@ -90,6 +90,7 @@ Key rule groups: default pyflakes/pycodestyle, comprehensions, import sorting, p
 Ignored: `F401` (unused imports), `B006` (mutable default args), `D100` (module docstring), `D105` (magic method docstring), `D107` (`__init__` docstring).
 
 Per-file ignores:
+
 - `tests/`, `examples/`, `datacrunch_compat/tests/` -- all `D` rules (docstrings not required)
 - `__init__.py` -- `D104` (missing package docstring)
 - `datacrunch_compat/datacrunch/*.py` -- `F403` (wildcard imports allowed)
@@ -160,3 +161,5 @@ Ensure two blank lines between the header and the first top-level `class`/`def` 
 
 - **Runtime:** `requests` (HTTP), `dataclasses_json` (serialization)
 - **Dev:** `pytest`, `pytest-cov`, `pytest-responses`, `responses`, `python-dotenv`, `ruff`
+
+* IMPORTANT: Never jump directly to the conclusion. First think about constraints and considerations before answering. This applies to all questions including ones that look simple, practical, obvious or straightforward. Labeling a question as not needing analysis is itself a failure mode.
