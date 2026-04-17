@@ -12,10 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LongTermService` with `get_cluster_periods()` and `get_instance_periods()` methods
 - `VolumesService.delete_by_id()` method using `DELETE /v1/volumes/{volume_id}` endpoint
 - Support for querying OS images by instance type via `verda.images.get(instance_type=...)`
+- Apache 2.0 license headers to all source files
 
 ### Changed
 
 - Refactored `Image` model to use `@dataclass` and `@dataclass_json` for consistency with `Instance` and `Volume`
+- License changed from MIT to Apache 2.0
 
 ## [1.24.0] - 2026-03-30
 
