@@ -11,8 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `LongTermService` with `get_cluster_periods()` and `get_instance_periods()` methods
 - `VolumesService.delete_by_id()` method using `DELETE /v1/volumes/{volume_id}` endpoint
+- Support for querying OS images by instance type via `verda.images.get(instance_type=...)`
 
-## [1.22.0] - 2026-03-20
+### Changed
+
+- Refactored `Image` model to use `@dataclass` and `@dataclass_json` for consistency with `Instance` and `Volume`
+
+## [1.24.0] - 2026-03-30
+
+### Added
+
+- Added missing fields to the `Volume` class: `pseudo_path`, `mount_command`, `create_directory_command`, `filesystem_to_fstab_command`, `instances`, `contract`, `base_hourly_cost`, `monthly_price`, `currency`, `long_term`
+
+### Changed
+
+- Refactored `Volume` class to use `@dataclass` and `@dataclass_json` for consistency with `Instance` class. `Volume.create_from_dict()` is replaced by `Volume.from_dict()`; unknown API fields are now silently ignored via `Undefined.EXCLUDE`
+
+## [1.23.1] - 2026-03-25
+
+### Fixed
+
+- Fixed volume mount fields (`volume_id`, `secret_name`, `file_names`, `size_in_mb`) being silently dropped during deserialization, causing deployment updates to fail with `volume_mounts.*.volume_id should not be null or undefined`
+
+## [1.23.0] - 2026-03-20
 
 ### Added
 
