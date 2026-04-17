@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `LongTermService` with `get_cluster_periods()` and `get_instance_periods()` methods
+- `VolumesService.delete_by_id()` method using `DELETE /v1/volumes/{volume_id}` endpoint
 - Support for querying OS images by instance type via `verda.images.get(instance_type=...)`
 
 ### Changed
