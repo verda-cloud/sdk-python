@@ -8,11 +8,11 @@ from verda.container_types import ContainerTypesService
 from verda.containers import ContainersService
 from verda.http_client import HTTPClient
 from verda.images import ImagesService
-from verda.long_term import LongTermService
 from verda.instance_types import InstanceTypesService
 from verda.instances import InstancesService
 from verda.job_deployments import JobDeploymentsService
 from verda.locations import LocationsService
+from verda.long_term import LongTermService
 from verda.ssh_keys import SSHKeysService
 from verda.startup_scripts import StartupScriptsService
 from verda.volume_types import VolumeTypesService
