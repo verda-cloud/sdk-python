@@ -86,7 +86,8 @@ class StartupScriptsService:
         :return: startup script object
         :rtype: StartupScript
         """
-        script = self._http_client.get(STARTUP_SCRIPTS_ENDPOINT + f'/{id}').json()[0]
+        response = self._http_client.get(STARTUP_SCRIPTS_ENDPOINT + '/{id}', path_params={'id': id})
+        script = response.json()[0]
 
         return StartupScript(script['id'], script['name'], script['script'])
 
@@ -106,7 +107,7 @@ class StartupScriptsService:
         :param id: startup script id
         :type id: str
         """
-        self._http_client.delete(STARTUP_SCRIPTS_ENDPOINT + f'/{id}')
+        self._http_client.delete(STARTUP_SCRIPTS_ENDPOINT + '/{id}', path_params={'id': id})
         return
 
     def create(self, name: str, script: str) -> StartupScript:

@@ -145,7 +145,9 @@ class InstancesService:
         Raises:
             HTTPError: If the instance is not found or other API error occurs.
         """
-        instance_dict = self._http_client.get(INSTANCES_ENDPOINT + f'/{id}').json()
+        instance_dict = self._http_client.get(
+            INSTANCES_ENDPOINT + '/{id}', path_params={'id': id}
+        ).json()
         return Instance.from_dict(instance_dict, infer_missing=True)
 
     def create(

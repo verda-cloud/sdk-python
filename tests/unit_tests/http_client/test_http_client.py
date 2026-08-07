@@ -12,18 +12,143 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from unittest.mock import Mock
 
 import pytest
 import responses  # https://github.com/getsentry/responses
 
 from verda.exceptions import APIException
+from verda.http_client._http_client import _encode_path_segment
 
 INVALID_REQUEST = 'invalid_request'
 INVALID_REQUEST_MESSAGE = 'Your existence is invalid'
 
 UNAUTHORIZED_REQUEST = 'unauthorized_request'
 UNAUTHORIZED_REQUEST_MESSAGE = 'Access token is missing or invalid'
+
+
+@pytest.mark.parametrize(
+    'value',
+    ['my-deployment', 'a1b2c3', 'name_with.dots-and~tilde', 'UPPER123'],
+)
+def test_encode_path_segment_leaves_ordinary_names_unchanged(value):
+    assert _encode_path_segment(value) == value
+
+
+@pytest.mark.parametrize(
+    ('value', 'expected'),
+    [
+        ('../../v1/balance', '..%2F..%2Fv1%2Fbalance'),
+        ('../ssh-keys', '..%2Fssh-keys'),
+        ('a/b', 'a%2Fb'),
+        ('nested/../../escape', 'nested%2F..%2F..%2Fescape'),
+    ],
+)
+def test_encode_path_segment_encodes_path_separators(value, expected):
+    assert _encode_path_segment(value) == expected
+
+
+@pytest.mark.parametrize(
+    ('value', 'expected'),
+    [
+        ('x?force=true&', 'x%3Fforce%3Dtrue%26'),
+        ('name#fragment', 'name%23fragment'),
+        ('a b', 'a%20b'),
+    ],
+)
+def test_encode_path_segment_encodes_query_and_fragment_delimiters(value, expected):
+    assert _encode_path_segment(value) == expected
+
+
+@pytest.mark.parametrize('value', ['.', '..'])
+def test_encode_path_segment_rejects_relative_segments(value):
+    # RFC 3986 dot-segments cannot be neutralised by encoding: `quote` leaves '.'
+    # alone (it is unreserved) and encoding it as '%2E' does not help either, because
+    # `requests.utils.requote_uri` decodes percent-encoded unreserved characters back
+    # before the request goes on the wire.
+    with pytest.raises(ValueError, match='relative path segment'):
+        _encode_path_segment(value)
+
+
+@pytest.mark.parametrize('value', ['%2E', '%2e%2E', '..%2F..'])
+def test_encode_path_segment_escapes_percent_so_encoded_dots_stay_literal(value):
+    # A literal '%' is itself encoded to '%25', so these can never decode back into
+    # a dot-segment on the wire.
+    assert _encode_path_segment(value) == value.replace('%', '%25')
+
+
+@pytest.mark.parametrize('value', ['', None])
+def test_encode_path_segment_rejects_empty_values(value):
+    # An empty segment collapses the URL onto the collection endpoint, which turns
+    # a delete-one call into a delete-all call.
+    with pytest.raises(ValueError, match='must be a non-empty string'):
+        _encode_path_segment(value)
+
+
+def test_encode_path_segment_allows_dots_inside_a_name():
+    assert _encode_path_segment('v1.2.3') == 'v1.2.3'
+    assert _encode_path_segment('..leading') == '..leading'
+
+
+class TestBuildPath:
+    """`path_params` values are encoded by the client, so call sites cannot forget."""
+
+    def test_template_without_path_params_is_returned_unchanged(self, http_client):
+        assert http_client._build_path('/instances', None) == '/instances'
+        assert http_client._build_path('/long-term/periods/clusters', {}) == (
+            '/long-term/periods/clusters'
+        )
+
+    def test_ordinary_values_are_substituted(self, http_client):
+        path = http_client._build_path(
+            '/container-deployments/{name}/status', {'name': 'my-deployment'}
+        )
+        assert path == '/container-deployments/my-deployment/status'
+
+    def test_multiple_params_are_substituted(self, http_client):
+        path = http_client._build_path(
+            '/container-deployments/{name}/replicas/{replica}',
+            {'name': 'dep', 'replica': 'r-1'},
+        )
+        assert path == '/container-deployments/dep/replicas/r-1'
+
+    @pytest.mark.parametrize(
+        ('value', 'encoded'),
+        [
+            ('../../v1/instances', '..%2F..%2Fv1%2Finstances'),
+            ('a/b', 'a%2Fb'),
+            ('x?force=true&', 'x%3Fforce%3Dtrue%26'),
+            ('name#frag', 'name%23frag'),
+            ('a b', 'a%20b'),
+        ],
+    )
+    def test_hostile_values_are_encoded_into_one_segment(self, http_client, value, encoded):
+        path = http_client._build_path('/secrets/{name}', {'name': value})
+        assert path == f'/secrets/{encoded}'
+
+    @pytest.mark.parametrize('value', ['.', '..', '', None])
+    def test_values_that_cannot_be_encoded_are_rejected(self, http_client, value):
+        with pytest.raises(ValueError, match='path segment must'):
+            http_client._build_path('/secrets/{name}', {'name': value})
+
+    def test_placeholder_without_a_value_is_rejected(self, http_client):
+        # Otherwise the literal '{id}' would be sent as the resource id.
+        with pytest.raises(ValueError, match='unsubstituted placeholder'):
+            http_client._build_path('/instances/{id}', None)
+
+    def test_unused_path_param_is_rejected(self, http_client):
+        # A value the caller believed was being used but that the template ignores.
+        with pytest.raises(KeyError):
+            http_client._build_path('/instances/{id}', {'wrong_name': 'x'})
+
+    def test_substituted_path_keeps_the_template_segment_count(self, http_client):
+        # An encoded value can never introduce a separator; assert the invariant holds
+        # so a future change to the encoding cannot silently add a path segment.
+        template = '/container-deployments/{name}/status'
+        for value in ['a/b/c', '../../x', 'plain']:
+            path = http_client._build_path(template, {'name': value})
+            assert path.count('/') == template.count('/')
 
 
 class TestHttpClient:
@@ -38,6 +163,40 @@ class TestHttpClient:
         # assert
         assert base == http_client._base_url
         assert url == base + path
+
+    @pytest.mark.parametrize(
+        'path',
+        [
+            '/container-deployments/../../v1/instances',
+            '/container-deployments/..',
+            '/instances/../ssh-keys',
+            '/volumes/.',
+            '/scripts/./x',
+            # requests decodes percent-encoded unreserved characters before sending,
+            # so these reach the server as real dot-segments.
+            '/container-deployments/%2E%2E',
+            '/volumes/%2e',
+        ],
+    )
+    def test_add_base_url_rejects_relative_path_segments(self, http_client, path):
+        # A call site that forgets to encode its path segment must not be able to
+        # retarget the request at a different endpoint.
+        with pytest.raises(ValueError, match='escape the API base path'):
+            http_client._add_base_url(path)
+
+    @pytest.mark.parametrize(
+        'path',
+        [
+            '/container-deployments/my-deployment',
+            '/container-deployments/..%2F..%2Fv1%2Finstances',
+            '/container-deployments/%252E%252E',
+            '/volumes/name.with.dots',
+            '/volumes/..leading',
+            '/long-term/periods/clusters',
+        ],
+    )
+    def test_add_base_url_allows_encoded_and_ordinary_paths(self, http_client, path):
+        assert http_client._add_base_url(path) == http_client._base_url + path
 
     def test_generate_bearer_header(self, http_client):
         bearer_string = http_client._generate_bearer_header()
@@ -72,6 +231,33 @@ class TestHttpClient:
         assert headers['Content-Type'] == 'application/json'
         assert headers['Authorization'] == authorization_string
         assert headers['User-Agent'] == user_agent_string
+
+    @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
+    @responses.activate
+    def test_request_methods_encode_path_params(self, http_client, method):
+        # arrange
+        responses.add(getattr(responses, method.upper()), re.compile(r'.*'), json={}, status=200)
+
+        # act
+        getattr(http_client, method)(
+            '/container-deployments/{name}/status', path_params={'name': '../../v1/instances'}
+        )
+
+        # assert
+        assert responses.calls[0].request.path_url == (
+            '/v1/container-deployments/..%2F..%2Fv1%2Finstances/status'
+        )
+
+    @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
+    @responses.activate
+    def test_request_methods_reject_unsafe_path_params_before_sending(self, http_client, method):
+        # arrange
+        responses.add(getattr(responses, method.upper()), re.compile(r'.*'), json={}, status=200)
+
+        # act / assert
+        with pytest.raises(ValueError, match='path segment must'):
+            getattr(http_client, method)('/secrets/{name}', path_params={'name': '..'})
+        assert not responses.calls
 
     def test_refresh_token_if_expired_refresh_successful(self, http_client):
         # act

@@ -141,7 +141,9 @@ class ClustersService:
         Raises:
             HTTPError: If the cluster is not found or other API error occurs.
         """
-        cluster_dict = self._http_client.get(CLUSTERS_ENDPOINT + f'/{id}').json()
+        cluster_dict = self._http_client.get(
+            CLUSTERS_ENDPOINT + '/{id}', path_params={'id': id}
+        ).json()
         return Cluster.from_dict(cluster_dict, infer_missing=True)
 
     def create(

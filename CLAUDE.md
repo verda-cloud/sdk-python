@@ -71,6 +71,34 @@ verda/<service>/
 - `__init__.py` files do NOT have the Apache 2.0 license header. All other `.py` files do.
 - Implementation files are prefixed with `_` (e.g., `_instances.py`, `_volumes.py`).
 
+## Making API requests
+
+Service modules call the shared `HTTPClient` (`verda/http_client/`), which exposes `get`, `post`, `put`, `patch`, and `delete`.
+
+**Never interpolate a caller-supplied value into the request path.** Resource names and IDs arrive from application input. A value containing `../` is resolved while the request is prepared and retargets the call at a different API endpoint under the SDK's own credentials; a value containing `?` injects query parameters.
+
+Pass such values as `path_params`. The client percent-encodes each one as exactly one path segment before substituting it:
+
+```python
+# correct
+response = self.client.get(
+    CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/status',
+    path_params={'deployment_name': deployment_name},
+)
+
+# wrong -- the name can escape its path segment
+response = self.client.get(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/status')
+```
+
+- The url is a template: a trusted endpoint constant concatenated with a literal containing `{name}` placeholders. Keep it a plain string, never an f-string, so a value cannot be interpolated by accident.
+- Name each placeholder after the parameter it carries (`{deployment_name}`, `{id}`, `{job_name}`).
+- `path_params` goes last in the call, after any positional `json` body or `params` query dict.
+- Paths with no caller input need no `path_params` (e.g. `self.client.get(INSTANCES_ENDPOINT)`).
+
+The client raises `ValueError` for values that cannot be safely encoded — empty values, and the relative segments `.` and `..` — and for a template placeholder left without a value. A placeholder missing from `path_params` raises `KeyError`.
+
+Encoding lives in `_encode_path_segment` in `verda/http_client/_http_client.py`. It is private on purpose: `path_params` is the only supported way to put a caller-supplied value into a path, so service modules never hand-roll encoding. As a backstop, `_add_base_url` refuses to send a request whose path would escape the API base path.
+
 ## Code style
 
 ### Formatting and linting
@@ -143,6 +171,7 @@ Ensure two blank lines between the header and the first top-level `class`/`def` 
 - **API error tests:** use `pytest.raises(APIException)` and verify `.code` and `.message`
 - **Request matching:** use `responses.add()` with `matchers.json_params_matcher()` to verify request payloads
 - **Test data:** define constants and mock payloads as module-level variables at top of test file
+- **Path traversal regression:** `tests/unit_tests/test_path_traversal.py` drives every method that takes a resource name or id against hostile values. When adding such a method, add it to the `_call_sites` table there.
 
 ## Git and branching
 

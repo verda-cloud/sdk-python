@@ -801,7 +801,10 @@ class ContainersService:
         Returns:
             Deployment: The requested deployment.
         """
-        response = self.client.get(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}')
+        response = self.client.get(
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}',
+            path_params={'deployment_name': deployment_name},
+        )
         return Deployment.from_dict_with_inference_key(response.json(), self._inference_key)
 
     # Function alias
@@ -830,7 +833,9 @@ class ContainersService:
             Deployment: The updated deployment.
         """
         response = self.client.patch(
-            f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}', deployment.to_dict()
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}',
+            deployment.to_dict(),
+            path_params={'deployment_name': deployment_name},
         )
         return Deployment.from_dict_with_inference_key(response.json(), self._inference_key)
 
@@ -840,7 +845,10 @@ class ContainersService:
         Args:
             deployment_name: Name of the deployment to delete.
         """
-        self.client.delete(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}')
+        self.client.delete(
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}',
+            path_params={'deployment_name': deployment_name},
+        )
 
     def get_deployment_status(self, deployment_name: str) -> ContainerDeploymentStatus:
         """Retrieves the current status of a deployment.
@@ -851,7 +859,10 @@ class ContainersService:
         Returns:
             ContainerDeploymentStatus: Current status of the deployment.
         """
-        response = self.client.get(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/status')
+        response = self.client.get(
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/status',
+            path_params={'deployment_name': deployment_name},
+        )
         return ContainerDeploymentStatus(response.json()['status'])
 
     def restart_deployment(self, deployment_name: str) -> None:
@@ -860,7 +871,10 @@ class ContainersService:
         Args:
             deployment_name: Name of the deployment to restart.
         """
-        self.client.post(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/restart')
+        self.client.post(
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/restart',
+            path_params={'deployment_name': deployment_name},
+        )
 
     def get_deployment_scaling_options(self, deployment_name: str) -> ScalingOptions:
         """Retrieves the scaling options for a deployment.
@@ -871,7 +885,10 @@ class ContainersService:
         Returns:
             ScalingOptions: Current scaling options for the deployment.
         """
-        response = self.client.get(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/scaling')
+        response = self.client.get(
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/scaling',
+            path_params={'deployment_name': deployment_name},
+        )
         return ScalingOptions.from_dict(response.json())
 
     def update_deployment_scaling_options(
@@ -887,8 +904,9 @@ class ContainersService:
             ScalingOptions: Updated scaling options for the deployment.
         """
         response = self.client.patch(
-            f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/scaling',
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/scaling',
             scaling_options.to_dict(),
+            path_params={'deployment_name': deployment_name},
         )
         return ScalingOptions.from_dict(response.json())
 
@@ -901,7 +919,10 @@ class ContainersService:
         Returns:
             list[ReplicaInfo]: List of replica information.
         """
-        response = self.client.get(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/replicas')
+        response = self.client.get(
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/replicas',
+            path_params={'deployment_name': deployment_name},
+        )
         return [ReplicaInfo.from_dict(replica) for replica in response.json()['list']]
 
     def purge_deployment_queue(self, deployment_name: str) -> None:
@@ -910,7 +931,10 @@ class ContainersService:
         Args:
             deployment_name: Name of the deployment.
         """
-        self.client.post(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/purge-queue')
+        self.client.post(
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/purge-queue',
+            path_params={'deployment_name': deployment_name},
+        )
 
     def pause_deployment(self, deployment_name: str) -> None:
         """Pauses a deployment.
@@ -918,7 +942,10 @@ class ContainersService:
         Args:
             deployment_name: Name of the deployment to pause.
         """
-        self.client.post(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/pause')
+        self.client.post(
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/pause',
+            path_params={'deployment_name': deployment_name},
+        )
 
     def resume_deployment(self, deployment_name: str) -> None:
         """Resumes a paused deployment.
@@ -926,7 +953,10 @@ class ContainersService:
         Args:
             deployment_name: Name of the deployment to resume.
         """
-        self.client.post(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/resume')
+        self.client.post(
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/resume',
+            path_params={'deployment_name': deployment_name},
+        )
 
     def get_deployment_environment_variables(self, deployment_name: str) -> dict[str, list[EnvVar]]:
         """Retrieves environment variables for a deployment.
@@ -938,7 +968,8 @@ class ContainersService:
             dict[str, list[EnvVar]]: Dictionary mapping container names to their environment variables.
         """
         response = self.client.get(
-            f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/environment-variables'
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/environment-variables',
+            path_params={'deployment_name': deployment_name},
         )
         result = {}
         for item in response.json():
@@ -961,11 +992,12 @@ class ContainersService:
             dict[str, list[EnvVar]]: Updated environment variables for all containers.
         """
         response = self.client.post(
-            f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/environment-variables',
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/environment-variables',
             {
                 'container_name': container_name,
                 'env': [env_var.to_dict() for env_var in env_vars],
             },
+            path_params={'deployment_name': deployment_name},
         )
         result = {}
         for item in response.json():
@@ -988,11 +1020,12 @@ class ContainersService:
             dict[str, list[EnvVar]]: Updated environment variables for all containers.
         """
         response = self.client.patch(
-            f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/environment-variables',
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/environment-variables',
             {
                 'container_name': container_name,
                 'env': [env_var.to_dict() for env_var in env_vars],
             },
+            path_params={'deployment_name': deployment_name},
         )
         result = {}
         item = response.json()
@@ -1015,8 +1048,9 @@ class ContainersService:
             dict[str, list[EnvVar]]: Updated environment variables for all containers.
         """
         response = self.client.delete(
-            f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/environment-variables',
+            CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/environment-variables',
             {'container_name': container_name, 'env': env_var_names},
+            path_params={'deployment_name': deployment_name},
         )
         result = {}
         for item in response.json():
@@ -1077,7 +1111,9 @@ class ContainersService:
             force: Whether to force delete even if secret is in use.
         """
         self.client.delete(
-            f'{SECRETS_ENDPOINT}/{secret_name}', params={'force': str(force).lower()}
+            SECRETS_ENDPOINT + '/{secret_name}',
+            params={'force': str(force).lower()},
+            path_params={'secret_name': secret_name},
         )
 
     def get_registry_credentials(self) -> list[RegistryCredential]:
@@ -1104,7 +1140,10 @@ class ContainersService:
         Args:
             credentials_name: Name of the credentials to delete.
         """
-        self.client.delete(f'{CONTAINER_REGISTRY_CREDENTIALS_ENDPOINT}/{credentials_name}')
+        self.client.delete(
+            CONTAINER_REGISTRY_CREDENTIALS_ENDPOINT + '/{credentials_name}',
+            path_params={'credentials_name': credentials_name},
+        )
 
     def get_fileset_secrets(self) -> list[Secret]:
         """Retrieves all fileset secrets.
@@ -1121,7 +1160,9 @@ class ContainersService:
         Args:
             secret_name: Name of the secret to delete.
         """
-        self.client.delete(f'{FILESET_SECRETS_ENDPOINT}/{secret_name}')
+        self.client.delete(
+            FILESET_SECRETS_ENDPOINT + '/{secret_name}', path_params={'secret_name': secret_name}
+        )
 
     def create_fileset_secret_from_file_paths(
         self, secret_name: str, file_paths: list[str]
