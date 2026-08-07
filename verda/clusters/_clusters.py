@@ -24,6 +24,7 @@ from verda.http_client import HTTPClient
 
 CLUSTERS_ENDPOINT = '/clusters'
 CLUSTER_AVAILABILITY_ENDPOINT = '/cluster-availability'
+CLUSTER_IMAGES_ENDPOINT = '/images/cluster'
 
 # Default shared volume size is 30TB
 DEFAULT_SHARED_VOLUME_SIZE = 30000
@@ -313,5 +314,5 @@ class ClustersService:
             List of available images for the given cluster type.
         """
         query_params = {'instance_type': cluster_type}
-        images = self._http_client.get('/images/cluster', params=query_params).json()
+        images = self._http_client.get(CLUSTER_IMAGES_ENDPOINT, params=query_params).json()
         return [image['image_type'] for image in images]

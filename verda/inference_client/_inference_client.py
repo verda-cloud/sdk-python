@@ -22,6 +22,10 @@ import requests
 from dataclasses_json import Undefined, dataclass_json  # type: ignore
 from requests.structures import CaseInsensitiveDict
 
+# Path segments a URL parser resolves relative to the preceding segment (RFC 3986,
+# section 5.2.4).
+_RELATIVE_SEGMENTS = frozenset({'.', '..'})
+
 
 class InferenceClientError(Exception):
     """Base exception for InferenceClient errors."""
@@ -144,6 +148,12 @@ class InferenceClient:
         self.endpoint_base_url = endpoint_base_url.rstrip('/')
         self.base_domain = self.endpoint_base_url[: self.endpoint_base_url.rindex('/')]
         self.deployment_name = self.endpoint_base_url[self.endpoint_base_url.rindex('/') + 1 :]
+        # deployment_name is interpolated into the async status/result urls, so a
+        # dot-segment here would retarget those at the parent path.
+        if self.deployment_name in _RELATIVE_SEGMENTS:
+            raise InferenceClientError(
+                f'endpoint_base_url must end in a deployment name, got {endpoint_base_url!r}'
+            )
         self.timeout_seconds = timeout_seconds
         self._session = requests.Session()
         self._global_headers = {
@@ -193,8 +203,30 @@ class InferenceClient:
             del self._global_headers[key]
 
     def _build_url(self, path: str) -> str:
-        """Construct the full URL by joining the base URL with the path."""
-        return f'{self.endpoint_base_url}/{path.lstrip("/")}'
+        """Construct the full URL by joining the base URL with the path.
+
+        ``path`` is a caller-chosen API path and may span several segments, so it is
+        not encoded as one. It must still stay under the deployment's base url:
+        ``endpoint_base_url`` ends with this deployment's name, so a relative segment
+        would walk the request onto a different deployment while still carrying the
+        caller's inference key.
+
+        Args:
+            path: API path relative to the deployment's endpoint.
+
+        Returns:
+            The full request URL.
+
+        Raises:
+            InferenceClientError: If the path contains a relative path segment.
+        """
+        relative = path.lstrip('/')
+        if _RELATIVE_SEGMENTS.intersection(relative.split('/')):
+            raise InferenceClientError(
+                f'path must not contain a relative path segment, got {path!r}'
+            )
+
+        return f'{self.endpoint_base_url}/{relative}'
 
     def _build_request_headers(
         self, request_headers: dict[str, str] | None = None

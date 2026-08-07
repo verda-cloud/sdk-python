@@ -97,7 +97,11 @@ response = self.client.get(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/
 
 Endpoint paths belong in a module-level `<NAME>_ENDPOINT` constant, never an inline string literal — a literal hides the call site from the greps and audits used to check this rule.
 
-The client raises `ValueError` for values that cannot be safely encoded — empty values, and the relative segments `.` and `..` — for a template placeholder left without a value, and for a `path_params` key the template does not use. A placeholder with no value at all raises `KeyError`. Non-string values (`int`, `UUID`) are coerced with `str()`.
+The client raises `ValueError` for values it cannot make safe — empty/`None`, and any value with a relative path segment (`.` or `..` between slashes) — and for any template/`path_params` mismatch. Non-string values (`int`, `UUID`) are coerced with `str()`.
+
+Dot-segments are rejected rather than encoded because encoding does not hold end to end: `requests` decodes `%2E` back to `.` before sending, and `%2F` is restored by any intermediary that unescapes encoded slashes before normalising the path. A slash on its own is fine and is encoded (`docker.io/myorg` → `docker.io%2Fmyorg`).
+
+All five verbs delegate to a single private `_request`, which is where the url is built and validated. Add new verbs by delegating to it, never by calling `requests` directly.
 
 Encoding lives in `_encode_path_segment` in `verda/http_client/_http_client.py`. It is private on purpose: `path_params` is the only supported way to put a caller-supplied value into a path, so service modules never hand-roll encoding. As a backstop, `_add_base_url` refuses to send a request whose path would escape the API base path.
 

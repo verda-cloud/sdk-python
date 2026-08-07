@@ -50,22 +50,35 @@ BASE_PATH = '/v1'
 # Expectations are written out literally rather than derived from the SDK helper, so
 # the test fails if the encoding rule itself regresses.
 HOSTILE_NAMES = [
-    ('../../v1/instances', '..%2F..%2Fv1%2Finstances'),
-    ('../../../v1/instances', '..%2F..%2F..%2Fv1%2Finstances'),
-    ('../ssh-keys', '..%2Fssh-keys'),
-    ('../../v1/balance', '..%2F..%2Fv1%2Fbalance'),
-    ('nested/../../escape', 'nested%2F..%2F..%2Fescape'),
     # query-string / fragment smuggling
     ('x?force=true&', 'x%3Fforce%3Dtrue%26'),
     ('name#frag', 'name%23frag'),
     # a literal '%' must be escaped so it cannot decode into a dot-segment later
     ('%2E%2E', '%252E%252E'),
+    ('..%2F..', '..%252F..'),
+    # a slash with no dot-segment is encoded, not refused: registry credential
+    # names legitimately look like 'docker.io/myorg'
+    ('a/b', 'a%2Fb'),
 ]
 
 # Names that cannot be made safe by encoding and must be refused outright:
-# '.' and '..' are RFC 3986 dot-segments, and an empty name collapses the URL onto
-# the collection endpoint (turning delete-one into delete-all).
-REJECTED_NAMES = ['.', '..', '', None]
+#  - '.' and '..' are RFC 3986 dot-segments, and '%2E' is decoded back to '.' by
+#    requests before the request is sent
+#  - a dot-segment anywhere in the value survives '%2F' encoding if any intermediary
+#    unescapes encoded slashes before normalising the path
+#  - an empty name collapses the URL onto the collection endpoint, turning a
+#    delete-one call into a delete-all call
+REJECTED_NAMES = [
+    '.',
+    '..',
+    '',
+    None,
+    '../../v1/instances',
+    '../../../v1/instances',
+    '../ssh-keys',
+    '../../v1/balance',
+    'nested/../../escape',
+]
 
 ANY_URL = re.compile(r'.*')
 

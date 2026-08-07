@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed a path traversal issue where a resource name or id containing `../` was resolved while the request was prepared, retargeting the call at a different API endpoint under the SDK's own credentials (for example `containers.delete_deployment('../../v1/instances')` issued `DELETE /v1/instances`). This also prevents a name from injecting query parameters, such as overriding the `force` flag of `containers.delete_secret`.
 
-  Caller-supplied path values are no longer interpolated into the request path. `HTTPClient.get/post/put/patch/delete` now accept a `path_params` mapping whose values are percent-encoded as a single path segment before substitution, and all service modules pass names and ids that way. This covers `instances.is_available()` and `clusters.is_available()`, where the affected value was the `instance_type`/`cluster_type` query. Values that cannot be made safe by encoding — `.`, `..`, and empty values — raise `ValueError`. As a backstop, `HTTPClient` refuses to send a request whose path would escape the API base path.
+  Caller-supplied path values are no longer interpolated into the request path. `HTTPClient.get/post/put/patch/delete` now accept a keyword-only `path_params` mapping whose values are percent-encoded as a single path segment before substitution, and all service modules pass names and ids that way. This covers `instances.is_available()` and `clusters.is_available()`, where the affected value was the `instance_type`/`cluster_type`. As a backstop, `HTTPClient` refuses to send a request whose path would escape the API base path.
+
+  `InferenceClient` paths are validated too: `path` may still span several segments, but it can no longer walk out of the deployment's base url.
 
 ### Added
 
@@ -22,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** a resource name or id containing a relative path segment (`.` or `..` between slashes), an empty value, or `None` now raises `ValueError` instead of being sent. Encoding alone is not sufficient for these: `%2E` is decoded back to `.` before the request is sent, and `%2F` is restored by any intermediary that unescapes encoded slashes before normalising the path.
+- **Breaking:** resource names and ids are now percent-encoded, so a value that was already URL-encoded by the caller is encoded again — `get_deployment_by_name('my%20deployment')` now looks up a deployment literally named `my%20deployment` rather than `my deployment`. Pass the raw name instead.
 - Refactored `Image` model to use `@dataclass` and `@dataclass_json` for consistency with `Instance` and `Volume`
 - License changed from MIT to Apache 2.0
 

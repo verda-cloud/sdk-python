@@ -45,12 +45,15 @@ def _encode_path_segment(value: str) -> str:
     interpolation this replaced used to do, so ids passed as ``int`` or ``UUID``
     keep working.
 
-    :param value: a resource name or id supplied by the caller
-    :type value: str
-    :raises ValueError: if the value is empty, or is a relative path segment that no
-        amount of encoding can make safe
-    :return: the value encoded as exactly one path segment
-    :rtype: str
+    Args:
+        value: A resource name or id supplied by the caller.
+
+    Returns:
+        The value encoded as exactly one path segment.
+
+    Raises:
+        ValueError: If the value is empty, or contains a relative path segment that no
+            amount of encoding can make safe.
     """
     if value is None:
         raise ValueError(f'path segment must be a non-empty string, got {value!r}')
@@ -58,10 +61,14 @@ def _encode_path_segment(value: str) -> str:
         value = str(value)
     if not value:
         raise ValueError(f'path segment must be a non-empty string, got {value!r}')
-    if value in _RELATIVE_SEGMENTS:
-        # Encoding these as '%2E'/'%2E%2E' does not help: requests decodes
-        # percent-encoded unreserved characters again before sending the request.
-        raise ValueError(f'path segment must not be a relative path segment, got {value!r}')
+    # Encoding is not sufficient for dot-segments. '%2E' is decoded back to '.' by
+    # requests before the request is sent, and encoding '/' as '%2F' only holds as
+    # long as nothing between here and the server unescapes it -- an intermediary
+    # that unescapes encoded slashes before normalising the path (for example
+    # Envoy's UNESCAPE_AND_FORWARD) would turn '..%2F..%2Fx' back into a traversal.
+    # A resource name has no legitimate reason to contain a dot-segment.
+    if _RELATIVE_SEGMENTS.intersection(value.split('/')):
+        raise ValueError(f'path segment must not contain a relative path segment, got {value!r}')
 
     return quote(value, safe='')
 
@@ -69,8 +76,11 @@ def _encode_path_segment(value: str) -> str:
 def handle_error(response: requests.Response) -> None:
     """Checks for the response status code and raises an exception if it's 400 or higher.
 
-    :param response: the API call response
-    :raises APIException: an api exception with message and error type code
+    Args:
+        response: The API call response.
+
+    Raises:
+        APIException: An api exception with message and error type code.
     """
     if not response.ok:
         data = json.loads(response.text)
@@ -98,6 +108,7 @@ class HTTPClient:
         url: str,
         json: dict | None = None,
         params: dict | None = None,
+        *,
         path_params: dict | None = None,
         **kwargs,
     ) -> requests.Response:
@@ -107,39 +118,32 @@ class HTTPClient:
 
         Builds the url, uses custom headers, refresh tokens if needed.
 
-        :param url: relative url of the API endpoint
-        :type url: str
-        :param json: A JSON serializable Python object to send in the body of the Request, defaults to None
-        :type json: dict, optional
-        :param params: Dictionary of querystring data to attach to the Request, defaults to None
-        :type params: dict, optional
-        :param path_params: Values substituted into ``{name}`` placeholders in the url,
-            each encoded as a single path segment, defaults to None
-        :type path_params: dict, optional
+        Args:
+            url: Relative url of the API endpoint.
+            json: A JSON serializable Python object to send in the body of the request.
+            params: Dictionary of querystring data to attach to the request.
+            path_params: Values substituted into ``{name}`` placeholders in the url,
+                each encoded as a single path segment.
+            **kwargs: Additional keyword arguments passed through to ``requests``.
 
-        :raises ValueError: if a path parameter cannot be safely encoded as a single
-            path segment, or the url and ``path_params`` do not match
-        :raises APIException: an api exception with message and error type code
+        Returns:
+            The response object.
 
-        :return: Response object
-        :rtype: requests.Response
+        Raises:
+            ValueError: If a path parameter cannot be safely encoded as a single path
+                segment, or the url and ``path_params`` do not match.
+            APIException: An api exception with message and error type code.
         """
-        # Validate before the refresh so a rejected name costs no auth round-trip.
-        url = self._add_base_url(self._build_path(url, path_params))
-
-        self._refresh_token_if_expired()
-        headers = self._generate_headers()
-
-        response = requests.post(url, json=json, headers=headers, params=params, **kwargs)
-        handle_error(response)
-
-        return response
+        return self._request(
+            'POST', url, json=json, params=params, path_params=path_params, **kwargs
+        )
 
     def put(
         self,
         url: str,
         json: dict | None = None,
         params: dict | None = None,
+        *,
         path_params: dict | None = None,
         **kwargs,
     ) -> requests.Response:
@@ -149,38 +153,31 @@ class HTTPClient:
 
         Builds the url, uses custom headers, refresh tokens if needed.
 
-        :param url: relative url of the API endpoint
-        :type url: str
-        :param json: A JSON serializable Python object to send in the body of the Request, defaults to None
-        :type json: dict, optional
-        :param params: Dictionary of querystring data to attach to the Request, defaults to None
-        :type params: dict, optional
-        :param path_params: Values substituted into ``{name}`` placeholders in the url,
-            each encoded as a single path segment, defaults to None
-        :type path_params: dict, optional
+        Args:
+            url: Relative url of the API endpoint.
+            json: A JSON serializable Python object to send in the body of the request.
+            params: Dictionary of querystring data to attach to the request.
+            path_params: Values substituted into ``{name}`` placeholders in the url,
+                each encoded as a single path segment.
+            **kwargs: Additional keyword arguments passed through to ``requests``.
 
-        :raises ValueError: if a path parameter cannot be safely encoded as a single
-            path segment, or the url and ``path_params`` do not match
-        :raises APIException: an api exception with message and error type code
+        Returns:
+            The response object.
 
-        :return: Response object
-        :rtype: requests.Response
+        Raises:
+            ValueError: If a path parameter cannot be safely encoded as a single path
+                segment, or the url and ``path_params`` do not match.
+            APIException: An api exception with message and error type code.
         """
-        # Validate before the refresh so a rejected name costs no auth round-trip.
-        url = self._add_base_url(self._build_path(url, path_params))
-
-        self._refresh_token_if_expired()
-        headers = self._generate_headers()
-
-        response = requests.put(url, json=json, headers=headers, params=params, **kwargs)
-        handle_error(response)
-
-        return response
+        return self._request(
+            'PUT', url, json=json, params=params, path_params=path_params, **kwargs
+        )
 
     def get(
         self,
         url: str,
         params: dict | None = None,
+        *,
         path_params: dict | None = None,
         **kwargs,
     ) -> requests.Response:
@@ -190,37 +187,29 @@ class HTTPClient:
 
         Builds the url, uses custom headers, refresh tokens if needed.
 
-        :param url: relative url of the API endpoint
-        :type url: str
-        :param params: Dictionary of querystring data to attach to the Request, defaults to None
-        :type params: dict, optional
-        :param path_params: Values substituted into ``{name}`` placeholders in the url,
-            each encoded as a single path segment, defaults to None
-        :type path_params: dict, optional
+        Args:
+            url: Relative url of the API endpoint.
+            params: Dictionary of querystring data to attach to the request.
+            path_params: Values substituted into ``{name}`` placeholders in the url,
+                each encoded as a single path segment.
+            **kwargs: Additional keyword arguments passed through to ``requests``.
 
-        :raises ValueError: if a path parameter cannot be safely encoded as a single
-            path segment, or the url and ``path_params`` do not match
-        :raises APIException: an api exception with message and error type code
+        Returns:
+            The response object.
 
-        :return: Response object
-        :rtype: requests.Response
+        Raises:
+            ValueError: If a path parameter cannot be safely encoded as a single path
+                segment, or the url and ``path_params`` do not match.
+            APIException: An api exception with message and error type code.
         """
-        # Validate before the refresh so a rejected name costs no auth round-trip.
-        url = self._add_base_url(self._build_path(url, path_params))
-
-        self._refresh_token_if_expired()
-        headers = self._generate_headers()
-
-        response = requests.get(url, params=params, headers=headers, **kwargs)
-        handle_error(response)
-
-        return response
+        return self._request('GET', url, params=params, path_params=path_params, **kwargs)
 
     def patch(
         self,
         url: str,
         json: dict | None = None,
         params: dict | None = None,
+        *,
         path_params: dict | None = None,
         **kwargs,
     ) -> requests.Response:
@@ -230,39 +219,32 @@ class HTTPClient:
 
         Builds the url, uses custom headers, refresh tokens if needed.
 
-        :param url: relative url of the API endpoint
-        :type url: str
-        :param json: A JSON serializable Python object to send in the body of the Request, defaults to None
-        :type json: dict, optional
-        :param params: Dictionary of querystring data to attach to the Request, defaults to None
-        :type params: dict, optional
-        :param path_params: Values substituted into ``{name}`` placeholders in the url,
-            each encoded as a single path segment, defaults to None
-        :type path_params: dict, optional
+        Args:
+            url: Relative url of the API endpoint.
+            json: A JSON serializable Python object to send in the body of the request.
+            params: Dictionary of querystring data to attach to the request.
+            path_params: Values substituted into ``{name}`` placeholders in the url,
+                each encoded as a single path segment.
+            **kwargs: Additional keyword arguments passed through to ``requests``.
 
-        :raises ValueError: if a path parameter cannot be safely encoded as a single
-            path segment, or the url and ``path_params`` do not match
-        :raises APIException: an api exception with message and error type code
+        Returns:
+            The response object.
 
-        :return: Response object
-        :rtype: requests.Response
+        Raises:
+            ValueError: If a path parameter cannot be safely encoded as a single path
+                segment, or the url and ``path_params`` do not match.
+            APIException: An api exception with message and error type code.
         """
-        # Validate before the refresh so a rejected name costs no auth round-trip.
-        url = self._add_base_url(self._build_path(url, path_params))
-
-        self._refresh_token_if_expired()
-        headers = self._generate_headers()
-
-        response = requests.patch(url, json=json, headers=headers, params=params, **kwargs)
-        handle_error(response)
-
-        return response
+        return self._request(
+            'PATCH', url, json=json, params=params, path_params=path_params, **kwargs
+        )
 
     def delete(
         self,
         url: str,
         json: dict | None = None,
         params: dict | None = None,
+        *,
         path_params: dict | None = None,
         **kwargs,
     ) -> requests.Response:
@@ -272,30 +254,63 @@ class HTTPClient:
 
         Builds the url, uses custom headers, refresh tokens if needed.
 
-        :param url: relative url of the API endpoint
-        :type url: str
-        :param json: A JSON serializable Python object to send in the body of the Request, defaults to None
-        :type json: dict, optional
-        :param params: Dictionary of querystring data to attach to the Request, defaults to None
-        :type params: dict, optional
-        :param path_params: Values substituted into ``{name}`` placeholders in the url,
-            each encoded as a single path segment, defaults to None
-        :type path_params: dict, optional
+        Args:
+            url: Relative url of the API endpoint.
+            json: A JSON serializable Python object to send in the body of the request.
+            params: Dictionary of querystring data to attach to the request.
+            path_params: Values substituted into ``{name}`` placeholders in the url,
+                each encoded as a single path segment.
+            **kwargs: Additional keyword arguments passed through to ``requests``.
 
-        :raises ValueError: if a path parameter cannot be safely encoded as a single
-            path segment, or the url and ``path_params`` do not match
-        :raises APIException: an api exception with message and error type code
+        Returns:
+            The response object.
 
-        :return: Response object
-        :rtype: requests.Response
+        Raises:
+            ValueError: If a path parameter cannot be safely encoded as a single path
+                segment, or the url and ``path_params`` do not match.
+            APIException: An api exception with message and error type code.
+        """
+        return self._request(
+            'DELETE', url, json=json, params=params, path_params=path_params, **kwargs
+        )
+
+    def _request(
+        self,
+        method: str,
+        url: str,
+        json: dict | None = None,
+        params: dict | None = None,
+        path_params: dict | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Sends a request, building and validating the url first.
+
+        Every verb goes through here, so the path-parameter encoding cannot be
+        skipped by adding a new one.
+
+        Args:
+            method: HTTP method name.
+            url: Relative url of the API endpoint.
+            json: A JSON serializable Python object to send in the body of the request.
+            params: Dictionary of querystring data to attach to the request.
+            path_params: Values substituted into ``{name}`` placeholders in the url.
+            **kwargs: Additional keyword arguments passed through to ``requests``.
+
+        Returns:
+            The response object.
+
+        Raises:
+            ValueError: If the url and ``path_params`` do not produce a safe path.
+            APIException: An api exception with message and error type code.
         """
         # Validate before the refresh so a rejected name costs no auth round-trip.
         url = self._add_base_url(self._build_path(url, path_params))
 
         self._refresh_token_if_expired()
-        headers = self._generate_headers()
 
-        response = requests.delete(url, headers=headers, json=json, params=params, **kwargs)
+        response = requests.request(
+            method, url, json=json, headers=self._generate_headers(), params=params, **kwargs
+        )
         handle_error(response)
 
         return response
@@ -303,9 +318,11 @@ class HTTPClient:
     def _refresh_token_if_expired(self) -> None:
         """Refreshes the access token if it expired.
 
-        Uses the refresh token to refresh, and if the refresh token is also expired, uses the client credentials.
+        Uses the refresh token to refresh, and if the refresh token is also expired,
+        uses the client credentials.
 
-        :raises APIException: an api exception with message and error type code
+        Raises:
+            APIException: An api exception with message and error type code.
         """
         if self._auth_service.is_expired():
             # try to refresh. if refresh token has expired, reauthenticate
@@ -317,8 +334,8 @@ class HTTPClient:
     def _generate_headers(self) -> dict:
         """Generate the default headers for every request.
 
-        :return: dict with request headers
-        :rtype: dict
+        Returns:
+            Dict with request headers.
         """
         headers = {
             'Authorization': self._generate_bearer_header(),
@@ -330,16 +347,16 @@ class HTTPClient:
     def _generate_bearer_header(self) -> str:
         """Generate the authorization header Bearer string.
 
-        :return: Authorization header Bearer string
-        :rtype: str
+        Returns:
+            Authorization header Bearer string.
         """
         return f'Bearer {self._auth_service._access_token}'
 
     def _generate_user_agent(self) -> str:
         """Generate the user agent string.
 
-        :return: user agent string
-        :rtype: str
+        Returns:
+            User agent string.
         """
         # get the first 10 chars of the client id
         client_id_truncated = self._auth_service._client_id[:10]
@@ -357,16 +374,17 @@ class HTTPClient:
         Example:
         ``_build_path('/instances/{id}', {'id': 'a/b'})`` returns ``'/instances/a%2Fb'``
 
-        :param url: a relative url, optionally containing ``{name}`` placeholders
-        :type url: str
-        :param path_params: values to substitute into the placeholders
-        :type path_params: dict, optional
-        :raises ValueError: if a value cannot be safely encoded as a path segment, if
-            the url still contains a placeholder that was never given a value, or if
-            ``path_params`` carries a key the url does not use
-        :raises KeyError: if the url has a placeholder missing from ``path_params``
-        :return: the relative url with every value encoded and substituted
-        :rtype: str
+        Args:
+            url: A relative url, optionally containing ``{name}`` placeholders.
+            path_params: Values to substitute into the placeholders.
+
+        Returns:
+            The relative url with every value encoded and substituted.
+
+        Raises:
+            ValueError: If a value cannot be safely encoded as a path segment, if the
+                url still contains a placeholder that was never given a value, or if
+                ``path_params`` carries a key the url does not use.
         """
         if not path_params:
             if '{' in url:
@@ -378,7 +396,10 @@ class HTTPClient:
             raise ValueError(f'unused path parameter {sorted(unused)} for url {url!r}')
 
         encoded = {key: _encode_path_segment(value) for key, value in path_params.items()}
-        path = url.format(**encoded)
+        try:
+            path = url.format(**encoded)
+        except KeyError as error:
+            raise ValueError(f'no value given for placeholder {error} in url {url!r}') from error
 
         # An encoded value can never contain a separator, so substitution must not
         # change the shape of the route. Belt and braces against a future change to
@@ -400,20 +421,25 @@ class HTTPClient:
         a relative path segment that reached this point would be resolved away by
         ``requests`` (or by the server), pointing the request at a different endpoint.
 
-        :param url: a relative url path
-        :type url: str
-        :raises ValueError: if the path could escape the API base path
-        :return: the full url path
-        :rtype: str
+        Args:
+            url: A relative url path.
+
+        Returns:
+            The full url path.
+
+        Raises:
+            ValueError: If the path could escape the API base path.
         """
         path = url.split('?', 1)[0].split('#', 1)[0]
 
         # requests decodes percent-encoded unreserved characters before sending, which
         # turns '%2E' back into '.'. Inspect the path the way the server will see it.
+        # A malformed escape means the check cannot be performed, so fail closed
+        # rather than validating the un-normalised path.
         try:
             path = unquote_unreserved(path)
-        except InvalidURL:
-            pass
+        except InvalidURL as error:
+            raise ValueError(f'request path has a malformed percent-escape: {url!r}') from error
 
         if _RELATIVE_SEGMENTS.intersection(path.split('/')):
             raise ValueError(

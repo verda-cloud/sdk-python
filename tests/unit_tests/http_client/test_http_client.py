@@ -40,14 +40,26 @@ def test_encode_path_segment_leaves_ordinary_names_unchanged(value):
 @pytest.mark.parametrize(
     ('value', 'expected'),
     [
-        ('../../v1/balance', '..%2F..%2Fv1%2Fbalance'),
-        ('../ssh-keys', '..%2Fssh-keys'),
         ('a/b', 'a%2Fb'),
-        ('nested/../../escape', 'nested%2F..%2F..%2Fescape'),
+        ('docker.io/myorg', 'docker.io%2Fmyorg'),
     ],
 )
 def test_encode_path_segment_encodes_path_separators(value, expected):
     assert _encode_path_segment(value) == expected
+
+
+@pytest.mark.parametrize(
+    'value',
+    ['../../v1/balance', '../ssh-keys', 'nested/../../escape', 'a/./b', 'a/..'],
+)
+def test_encode_path_segment_rejects_values_containing_dot_segments(value):
+    # Encoding '/' as '%2F' is not sufficient on its own: any intermediary that
+    # unescapes encoded slashes before normalising the path (Envoy's
+    # UNESCAPE_AND_FORWARD, some gateways and servlet containers) turns
+    # '..%2F..%2Fv1%2Finstances' back into a working traversal. A resource name has
+    # no legitimate reason to contain a dot-segment, so refuse it outright.
+    with pytest.raises(ValueError, match='relative path segment'):
+        _encode_path_segment(value)
 
 
 @pytest.mark.parametrize(
@@ -117,7 +129,6 @@ class TestBuildPath:
     @pytest.mark.parametrize(
         ('value', 'encoded'),
         [
-            ('../../v1/instances', '..%2F..%2Fv1%2Finstances'),
             ('a/b', 'a%2Fb'),
             ('x?force=true&', 'x%3Fforce%3Dtrue%26'),
             ('name#frag', 'name%23frag'),
@@ -127,6 +138,11 @@ class TestBuildPath:
     def test_hostile_values_are_encoded_into_one_segment(self, http_client, value, encoded):
         path = http_client._build_path('/secrets/{name}', {'name': value})
         assert path == f'/secrets/{encoded}'
+
+    @pytest.mark.parametrize('value', ['../../v1/instances', 'nested/../escape'])
+    def test_values_containing_dot_segments_are_rejected(self, http_client, value):
+        with pytest.raises(ValueError, match='relative path segment'):
+            http_client._build_path('/secrets/{name}', {'name': value})
 
     @pytest.mark.parametrize('value', ['.', '..', '', None])
     def test_values_that_cannot_be_encoded_are_rejected(self, http_client, value):
@@ -139,9 +155,16 @@ class TestBuildPath:
             http_client._build_path('/instances/{id}', None)
 
     def test_placeholder_missing_from_path_params_raises(self, http_client):
-        # 'a' is supplied and used, 'b' has no value at all.
-        with pytest.raises(KeyError):
+        # 'a' is supplied and used, 'b' has no value at all. Every template/params
+        # mismatch reports as ValueError, matching what the request methods document.
+        with pytest.raises(ValueError, match='no value given for placeholder'):
             http_client._build_path('/x/{a}/{b}', {'a': '1'})
+
+    def test_malformed_percent_escape_fails_closed(self, http_client):
+        # The dot-segment check cannot be performed on a path that will not normalise,
+        # so the request must be refused rather than sent unchecked.
+        with pytest.raises(ValueError, match='malformed percent-escape'):
+            http_client._add_base_url('/x/%2E%2E/%zz')
 
     def test_misspelled_key_reports_the_unused_parameter(self, http_client):
         # Both wrong at once; the unused-key message names the actual mistake.
@@ -164,13 +187,17 @@ class TestBuildPath:
         path = http_client._build_path('/instances/{id}', {'id': value})
         assert path == f'/instances/{expected or value}'
 
-    def test_substituted_path_keeps_the_template_segment_count(self, http_client):
-        # An encoded value can never introduce a separator; assert the invariant holds
-        # so a future change to the encoding cannot silently add a path segment.
-        template = '/container-deployments/{name}/status'
-        for value in ['a/b/c', '../../x', 'plain']:
-            path = http_client._build_path(template, {'name': value})
-            assert path.count('/') == template.count('/')
+    def test_segment_count_guard_catches_an_encoder_that_leaks_a_separator(
+        self, http_client, monkeypatch
+    ):
+        # The guard is unreachable while the encoder is correct, so drive it with a
+        # deliberately broken encoder. This tests the guard itself rather than
+        # re-testing urllib's quote().
+        monkeypatch.setattr(
+            'verda.http_client._http_client._encode_path_segment', lambda value: value
+        )
+        with pytest.raises(ValueError, match='added a path segment'):
+            http_client._build_path('/container-deployments/{name}/status', {'name': 'a/b'})
 
 
 class TestHttpClient:
@@ -262,12 +289,12 @@ class TestHttpClient:
 
         # act
         getattr(http_client, method)(
-            '/container-deployments/{name}/status', path_params={'name': '../../v1/instances'}
+            '/container-deployments/{name}/status', path_params={'name': 'x?force=true&'}
         )
 
         # assert
         assert responses.calls[0].request.path_url == (
-            '/v1/container-deployments/..%2F..%2Fv1%2Finstances/status'
+            '/v1/container-deployments/x%3Fforce%3Dtrue%26/status'
         )
 
     @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
