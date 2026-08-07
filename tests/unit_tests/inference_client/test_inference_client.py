@@ -49,6 +49,10 @@ class TestBuildUrl:
             'a/../../b',
             './x',
             '..',
+            # requests decodes percent-encoded unreserved characters before sending,
+            # so these reach the wire as real dot-segments.
+            '%2e%2e/%2e%2e/v1/victim',
+            '%2E%2E/other-deployment',
         ],
     )
     def test_paths_that_escape_the_deployment_are_rejected(self, inference_client, path):
@@ -57,3 +61,30 @@ class TestBuildUrl:
         # inference key.
         with pytest.raises(InferenceClientError, match='relative path segment'):
             inference_client._build_url(path)
+
+    @pytest.mark.parametrize(
+        'path',
+        ['predict?filter=a/../b', 'predict#a/../b', 'predict?q=..'],
+    )
+    def test_dot_segments_inside_a_query_string_are_not_path_traversal(
+        self, inference_client, path
+    ):
+        # Only the path is resolved by a URL parser; a value inside the query string
+        # is not, so rejecting it would break callers passing an inline query.
+        assert inference_client._build_url(path) == f'{BASE_URL}/{path}'
+
+
+class TestEndpointBaseUrl:
+    @pytest.mark.parametrize(
+        'base_url',
+        [
+            'https://inf.example.com/v1/..',
+            'https://inf.example.com/v1/%2E%2E',
+            'https://inf.example.com/v1/../admin/dep',
+        ],
+    )
+    def test_base_url_containing_a_dot_segment_is_rejected(self, base_url):
+        # deployment_name and base_domain are sliced out of this and interpolated
+        # into the async status/result urls without further checks.
+        with pytest.raises(InferenceClientError, match='relative path segment'):
+            InferenceClient(inference_key='k', endpoint_base_url=base_url)

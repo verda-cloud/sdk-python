@@ -15,24 +15,19 @@
 import json
 import re
 from urllib.parse import quote
+from uuid import UUID
 
 import requests
-from requests.exceptions import InvalidURL
-from requests.utils import unquote_unreserved
 
 from verda._version import __version__
 from verda.exceptions import APIException
-
-# Path segments a URL parser resolves relative to the preceding segment (RFC 3986,
-# section 5.2.4). Reaching the wire with one of these means the request has been
-# retargeted at a different endpoint.
-_RELATIVE_SEGMENTS = frozenset({'.', '..'})
+from verda.helpers import _RELATIVE_SEGMENTS, has_relative_path_segment
 
 # A `{name}` placeholder in a relative url template.
 _PLACEHOLDER = re.compile(r'\{(\w+)\}')
 
 
-def _encode_path_segment(value: str) -> str:
+def _encode_path_segment(value: object) -> str:
     """Encode a caller-supplied value for safe use as a single URL path segment.
 
     Resource names and ids are interpolated into request paths. An unencoded value
@@ -41,9 +36,10 @@ def _encode_path_segment(value: str) -> str:
     credentials. Encoding with ``safe=''`` also neutralises ``?`` and ``#``, so a
     name cannot inject query parameters either.
 
-    Non-string values are coerced with ``str()``, matching what the f-string
-    interpolation this replaced used to do, so ids passed as ``int`` or ``UUID``
-    keep working.
+    ``int`` and ``UUID`` are coerced with ``str()``, matching what the f-string
+    interpolation this replaced used to do, so ids passed as either keep working. Any
+    other type is refused: ``str()`` on it would yield a nonsense segment (``b'abc'``
+    becomes ``"b'abc'"``) and a confusing 404 in place of an error at the call site.
 
     Args:
         value: A resource name or id supplied by the caller.
@@ -52,10 +48,10 @@ def _encode_path_segment(value: str) -> str:
         The value encoded as exactly one path segment.
 
     Raises:
-        ValueError: If the value is empty, or contains a relative path segment that no
-            amount of encoding can make safe.
+        ValueError: If the value is empty, is not a str, int or UUID, or contains a
+            relative path segment that no amount of encoding can make safe.
     """
-    if value is None:
+    if not isinstance(value, str | int | UUID) or isinstance(value, bool):
         raise ValueError(f'path segment must be a non-empty string, got {value!r}')
     if not isinstance(value, str):
         value = str(value)
@@ -430,18 +426,12 @@ class HTTPClient:
         Raises:
             ValueError: If the path could escape the API base path.
         """
-        path = url.split('?', 1)[0].split('#', 1)[0]
+        # Query data is passed separately as `params`, so a '?' or '#' here means a
+        # caller-supplied value was interpolated into the path without encoding.
+        if '?' in url or '#' in url:
+            raise ValueError(f'request path must not contain a query string or fragment: {url!r}')
 
-        # requests decodes percent-encoded unreserved characters before sending, which
-        # turns '%2E' back into '.'. Inspect the path the way the server will see it.
-        # A malformed escape means the check cannot be performed, so fail closed
-        # rather than validating the un-normalised path.
-        try:
-            path = unquote_unreserved(path)
-        except InvalidURL as error:
-            raise ValueError(f'request path has a malformed percent-escape: {url!r}') from error
-
-        if _RELATIVE_SEGMENTS.intersection(path.split('/')):
+        if has_relative_path_segment(url):
             raise ValueError(
                 f'refusing to send a request whose path would escape the API base path: {url!r}'
             )

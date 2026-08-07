@@ -160,12 +160,6 @@ class TestBuildPath:
         with pytest.raises(ValueError, match='no value given for placeholder'):
             http_client._build_path('/x/{a}/{b}', {'a': '1'})
 
-    def test_malformed_percent_escape_fails_closed(self, http_client):
-        # The dot-segment check cannot be performed on a path that will not normalise,
-        # so the request must be refused rather than sent unchecked.
-        with pytest.raises(ValueError, match='malformed percent-escape'):
-            http_client._add_base_url('/x/%2E%2E/%zz')
-
     def test_misspelled_key_reports_the_unused_parameter(self, http_client):
         # Both wrong at once; the unused-key message names the actual mistake.
         with pytest.raises(ValueError, match='unused path parameter'):
@@ -179,13 +173,25 @@ class TestBuildPath:
 
     @pytest.mark.parametrize(
         ('value', 'expected'),
-        [(123, '123'), (uuid.UUID('0c41e387-8b12-4b4b-9c1e-000000000001'), None)],
+        [
+            (123, '123'),
+            (
+                uuid.UUID('0c41e387-8b12-4b4b-9c1e-000000000001'),
+                '0c41e387-8b12-4b4b-9c1e-000000000001',
+            ),
+        ],
     )
     def test_non_string_values_are_coerced_not_rejected(self, http_client, value, expected):
         # Before path_params these were interpolated by an f-string, so rejecting them
         # would be an undocumented breaking change for callers passing ints or UUIDs.
-        path = http_client._build_path('/instances/{id}', {'id': value})
-        assert path == f'/instances/{expected or value}'
+        assert http_client._build_path('/instances/{id}', {'id': value}) == f'/instances/{expected}'
+
+    @pytest.mark.parametrize('value', [b'abc', ['a'], {'k': 'v'}, 3.5])
+    def test_types_that_are_not_identifiers_are_rejected(self, http_client, value):
+        # str() on these yields a nonsense segment (b'abc' -> "b'abc'"), producing a
+        # confusing 404 instead of an error at the call site.
+        with pytest.raises(ValueError, match='path segment must be'):
+            http_client._build_path('/instances/{id}', {'id': value})
 
     def test_segment_count_guard_catches_an_encoder_that_leaks_a_separator(
         self, http_client, monkeypatch
@@ -231,6 +237,22 @@ class TestHttpClient:
         # A call site that forgets to encode its path segment must not be able to
         # retarget the request at a different endpoint.
         with pytest.raises(ValueError, match='escape the API base path'):
+            http_client._add_base_url(path)
+
+    def test_add_base_url_still_detects_traversal_beside_a_malformed_escape(self, http_client):
+        # A malformed escape must not stop the dot-segment check from running.
+        with pytest.raises(ValueError, match='escape the API base path'):
+            http_client._add_base_url('/x/%2E%2E/%zz')
+
+    @pytest.mark.parametrize(
+        'path',
+        ['/secrets/x?force=true&', '/secrets/x#frag'],
+    )
+    def test_add_base_url_rejects_a_query_string_in_the_path(self, http_client, path):
+        # Query data is passed separately as `params`, so a '?' reaching here means an
+        # unencoded value was interpolated into the path -- the injection half of the
+        # traversal bug, which the dot-segment check alone does not catch.
+        with pytest.raises(ValueError, match='query string or fragment'):
             http_client._add_base_url(path)
 
     @pytest.mark.parametrize(

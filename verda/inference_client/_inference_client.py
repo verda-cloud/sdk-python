@@ -22,9 +22,7 @@ import requests
 from dataclasses_json import Undefined, dataclass_json  # type: ignore
 from requests.structures import CaseInsensitiveDict
 
-# Path segments a URL parser resolves relative to the preceding segment (RFC 3986,
-# section 5.2.4).
-_RELATIVE_SEGMENTS = frozenset({'.', '..'})
+from verda.helpers import has_relative_path_segment
 
 
 class InferenceClientError(Exception):
@@ -143,17 +141,19 @@ class InferenceClient:
         parsed_url = urlparse(endpoint_base_url)
         if not parsed_url.scheme or not parsed_url.netloc:
             raise InferenceClientError('endpoint_base_url must be a valid URL')
+        # base_domain and deployment_name are sliced out of this url and interpolated
+        # into the async status/result urls, so the whole path must be free of
+        # segments a parser would resolve away.
+        if has_relative_path_segment(parsed_url.path):
+            raise InferenceClientError(
+                f'endpoint_base_url must not contain a relative path segment, '
+                f'got {endpoint_base_url!r}'
+            )
 
         self.inference_key = inference_key
         self.endpoint_base_url = endpoint_base_url.rstrip('/')
         self.base_domain = self.endpoint_base_url[: self.endpoint_base_url.rindex('/')]
         self.deployment_name = self.endpoint_base_url[self.endpoint_base_url.rindex('/') + 1 :]
-        # deployment_name is interpolated into the async status/result urls, so a
-        # dot-segment here would retarget those at the parent path.
-        if self.deployment_name in _RELATIVE_SEGMENTS:
-            raise InferenceClientError(
-                f'endpoint_base_url must end in a deployment name, got {endpoint_base_url!r}'
-            )
         self.timeout_seconds = timeout_seconds
         self._session = requests.Session()
         self._global_headers = {
@@ -221,7 +221,7 @@ class InferenceClient:
             InferenceClientError: If the path contains a relative path segment.
         """
         relative = path.lstrip('/')
-        if _RELATIVE_SEGMENTS.intersection(relative.split('/')):
+        if has_relative_path_segment(relative):
             raise InferenceClientError(
                 f'path must not contain a relative path segment, got {path!r}'
             )

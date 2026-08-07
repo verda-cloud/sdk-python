@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking:** a resource name or id containing a relative path segment (`.` or `..` between slashes), an empty value, or `None` now raises `ValueError` instead of being sent. Encoding alone is not sufficient for these: `%2E` is decoded back to `.` before the request is sent, and `%2F` is restored by any intermediary that unescapes encoded slashes before normalising the path.
 - **Breaking:** resource names and ids are now percent-encoded, so a value that was already URL-encoded by the caller is encoded again — `get_deployment_by_name('my%20deployment')` now looks up a deployment literally named `my%20deployment` rather than `my deployment`. Pass the raw name instead.
+- **Breaking:** a `/` inside a resource name is now encoded as `%2F` and stays one path segment, where it previously split the route — `delete_registry_credentials('docker.io/myorg')` sends `DELETE /v1/container-registry-credentials/docker.io%2Fmyorg`. Servers that reject or refuse to decode encoded slashes (nginx and Apache with `AllowEncodedSlashes off`) will not match such a name.
+- **Breaking:** a path value that is not a `str`, `int` or `UUID` now raises `ValueError` rather than being coerced with `str()` into a nonsense path segment.
 - Refactored `Image` model to use `@dataclass` and `@dataclass_json` for consistency with `Instance` and `Volume`
 - License changed from MIT to Apache 2.0
 

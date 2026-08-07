@@ -20,11 +20,14 @@ segments they contain while preparing the URL, which retargets the call at a
 different API endpoint using the SDK's own credentials.
 """
 
+import ast
+import pathlib
 import re
 
 import pytest
 import responses
 
+import verda
 from verda.clusters import ClustersService
 from verda.containers import (
     ComputeResource,
@@ -98,6 +101,28 @@ _SCALING = ScalingOptions(
     scaling_triggers=ScalingTriggers(queue_load=QueueLoadScalingTrigger(threshold=0.75)),
 )
 _ENV_VARS = [EnvVar(name='K', value_or_reference_to_secret='v', type=EnvVarType.PLAIN)]
+
+
+def _service_methods_taking_a_path_param() -> set[tuple[str, str]]:
+    """(class, method) for every service method that passes a value as a path param.
+
+    Derived from the source rather than hand-listed, so a newly added method cannot
+    quietly escape the regression table below.
+    """
+    found = set()
+    for path in sorted(pathlib.Path(verda.__file__).parent.rglob('*.py')):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(node, ast.ClassDef) or not node.name.endswith('Service'):
+                continue
+            for method in node.body:
+                if not isinstance(method, ast.FunctionDef):
+                    continue
+                for call in ast.walk(method):
+                    if isinstance(call, ast.Call) and any(
+                        keyword.arg == 'path_params' for keyword in call.keywords
+                    ):
+                        found.add((node.name, method.name))
+    return found
 
 
 def _call_sites(services, name):
@@ -254,6 +279,24 @@ class TestPathTraversal:
             'clusters': ClustersService(http_client),
             'jobs': JobDeploymentsService(http_client),
         }
+
+    def test_every_method_taking_a_path_param_is_covered(self, services):
+        # The table below is hand-maintained; this is what stops it drifting. Two
+        # methods (instances/clusters.is_available) were once missed exactly this way.
+        # arrange
+        covered = set()
+        for label, _, _ in _call_sites(services, 'placeholder'):
+            service_key, method_name = label.split('.', 1)
+            covered.add((type(services[service_key]).__name__, method_name))
+
+        # act
+        missing = _service_methods_taking_a_path_param() - covered
+
+        # assert
+        assert not missing, (
+            f'these methods take a caller-supplied path value but are not exercised '
+            f'by this file; add them to _call_sites: {sorted(missing)}'
+        )
 
     @pytest.mark.parametrize(('name', 'encoded'), HOSTILE_NAMES)
     def test_hostile_name_stays_within_its_endpoint(self, services, name, encoded):

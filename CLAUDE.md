@@ -101,6 +101,10 @@ The client raises `ValueError` for values it cannot make safe — empty/`None`, 
 
 Dot-segments are rejected rather than encoded because encoding does not hold end to end: `requests` decodes `%2E` back to `.` before sending, and `%2F` is restored by any intermediary that unescapes encoded slashes before normalising the path. A slash on its own is fine and is encoded (`docker.io/myorg` → `docker.io%2Fmyorg`).
 
+The one rule for "would a URL parser resolve this away?" lives in `verda.helpers.has_relative_path_segment`, which strips any query string and decodes the escapes `requests` decodes. Use it — do not re-implement the check. `InferenceClient` once carried a second copy that missed `%2E%2E`.
+
+`tests/unit_tests/test_path_traversal.py` enforces its own completeness: it reads the source for methods passing `path_params` and fails if any is absent from its `_call_sites` table.
+
 All five verbs delegate to a single private `_request`, which is where the url is built and validated. Add new verbs by delegating to it, never by calling `requests` directly.
 
 Encoding lives in `_encode_path_segment` in `verda/http_client/_http_client.py`. It is private on purpose: `path_params` is the only supported way to put a caller-supplied value into a path, so service modules never hand-roll encoding. As a backstop, `_add_base_url` refuses to send a request whose path would escape the API base path.
