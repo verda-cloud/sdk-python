@@ -26,6 +26,11 @@ _RELATIVE_SEGMENTS = frozenset({'.', '..'})
 _ESCAPED_UNRESERVED = re.compile(r'%([0-9A-Fa-f]{2})')
 _UNRESERVED = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~')
 
+# Percent-encoded path separators. `requests` leaves these encoded, but they are
+# decoded by intermediaries that unescape before normalising, and a backslash is
+# treated as a separator by some servers.
+_ENCODED_SEPARATORS = ('%2F', '%2f', '%5C', '%5c', '\\')
+
 
 def _decode_unreserved(path: str) -> str:
     """Decode the percent-escapes that ``requests`` decodes before sending a request.
@@ -55,6 +60,12 @@ def has_relative_path_segment(path: str) -> bool:
     characters are then decoded, because ``requests`` decodes them before sending and
     a check against the raw string would miss ``%2E%2E``.
 
+    Encoded separators are decoded too. They survive to the wire, but an intermediary
+    that unescapes them before normalising the path (for example Envoy's
+    ``UNESCAPE_AND_FORWARD``) turns ``..%2F..%2Fx`` back into a working traversal, so
+    the check has to see what such a server would see. This does not reject an encoded
+    separator on its own: ``docker.io%2Fmyorg`` decodes to two ordinary segments.
+
     Args:
         path: A url path to inspect.
 
@@ -62,8 +73,11 @@ def has_relative_path_segment(path: str) -> bool:
         True if resolving the path would move it above one of its own segments.
     """
     path = path.split('?', 1)[0].split('#', 1)[0]
+    decoded = _decode_unreserved(path)
+    for separator in _ENCODED_SEPARATORS:
+        decoded = decoded.replace(separator, '/')
 
-    return bool(_RELATIVE_SEGMENTS.intersection(_decode_unreserved(path).split('/')))
+    return bool(_RELATIVE_SEGMENTS.intersection(decoded.split('/')))
 
 
 def stringify_class_object_properties(class_object: type) -> str:

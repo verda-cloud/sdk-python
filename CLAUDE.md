@@ -101,7 +101,9 @@ The client raises `ValueError` for values it cannot make safe — empty/`None`, 
 
 Dot-segments are rejected rather than encoded because encoding does not hold end to end: `requests` decodes `%2E` back to `.` before sending, and `%2F` is restored by any intermediary that unescapes encoded slashes before normalising the path. A slash on its own is fine and is encoded (`docker.io/myorg` → `docker.io%2Fmyorg`).
 
-The one rule for "would a URL parser resolve this away?" lives in `verda.helpers.has_relative_path_segment`, which strips any query string and decodes the escapes `requests` decodes. Use it — do not re-implement the check. `InferenceClient` once carried a second copy that missed `%2E%2E`.
+Checking a **finished path** for "would a URL parser resolve this away?" is `verda.helpers.has_relative_path_segment`. It strips any query string, decodes the escapes `requests` decodes, and decodes encoded separators (`%2F`, `%5C`) because an intermediary may unescape them before normalising. Use it — do not re-implement it. `InferenceClient` once carried a second copy that missed `%2E%2E`.
+
+`_encode_path_segment` checks the **raw value** instead, on purpose: that value still has `quote()` ahead of it, which escapes `%` and so makes `%2E%2E` and `..%2F..` inert as literal names. Using the finished-path helper there would reject them for no reason. Different question, different check — keep them apart.
 
 `tests/unit_tests/test_path_traversal.py` enforces its own completeness: it reads the source for methods passing `path_params` and fails if any is absent from its `_call_sites` table.
 

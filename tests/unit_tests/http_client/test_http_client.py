@@ -91,11 +91,17 @@ def test_encode_path_segment_escapes_percent_so_encoded_dots_stay_literal(value)
     assert _encode_path_segment(value) == value.replace('%', '%25')
 
 
-@pytest.mark.parametrize('value', ['', None])
-def test_encode_path_segment_rejects_empty_values(value):
+def test_encode_path_segment_rejects_an_empty_value():
     # An empty segment collapses the URL onto the collection endpoint, which turns
     # a delete-one call into a delete-all call.
     with pytest.raises(ValueError, match='must be a non-empty string'):
+        _encode_path_segment('')
+
+
+@pytest.mark.parametrize('value', [None, 3.5, b'abc', True])
+def test_encode_path_segment_reports_a_wrong_type_as_a_type_problem(value):
+    # The message has to name the real cause: 3.5 and None are not empty strings.
+    with pytest.raises(ValueError, match='must be a str, int or UUID'):
         _encode_path_segment(value)
 
 
@@ -246,6 +252,31 @@ class TestHttpClient:
 
     @pytest.mark.parametrize(
         'path',
+        [
+            '/container-deployments/..%2F..%2Fv1%2Finstances',
+            '/container-deployments/..%2f..%2fv1%2Finstances',
+            '/instances/%2E%2E%2Fssh-keys',
+            '/volumes/..%5C..%5Cadmin',
+        ],
+    )
+    def test_add_base_url_rejects_traversal_hidden_behind_an_encoded_separator(
+        self, http_client, path
+    ):
+        # The backstop exists for a call site that forgot to encode. Percent-encoding
+        # the separator must not hide the dot-segments from it, because an
+        # intermediary that unescapes encoded slashes restores the traversal.
+        with pytest.raises(ValueError, match='escape the API base path'):
+            http_client._add_base_url(path)
+
+    @pytest.mark.parametrize('path', ['/container-deployments/', '/volumes//x'])
+    def test_add_base_url_rejects_an_empty_path_segment(self, http_client, path):
+        # An empty segment collapses the request onto the collection endpoint, turning
+        # a delete-one into a delete-all.
+        with pytest.raises(ValueError, match='empty path segment'):
+            http_client._add_base_url(path)
+
+    @pytest.mark.parametrize(
+        'path',
         ['/secrets/x?force=true&', '/secrets/x#frag'],
     )
     def test_add_base_url_rejects_a_query_string_in_the_path(self, http_client, path):
@@ -259,8 +290,9 @@ class TestHttpClient:
         'path',
         [
             '/container-deployments/my-deployment',
-            '/container-deployments/..%2F..%2Fv1%2Finstances',
             '/container-deployments/%252E%252E',
+            # an encoded slash with no dot-segment around it is a legitimate name
+            '/container-registry-credentials/docker.io%2Fmyorg',
             '/volumes/name.with.dots',
             '/volumes/..leading',
             '/long-term/periods/clusters',

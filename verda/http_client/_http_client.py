@@ -52,7 +52,7 @@ def _encode_path_segment(value: object) -> str:
             relative path segment that no amount of encoding can make safe.
     """
     if not isinstance(value, str | int | UUID) or isinstance(value, bool):
-        raise ValueError(f'path segment must be a non-empty string, got {value!r}')
+        raise ValueError(f'path segment must be a str, int or UUID, got {type(value).__name__}')
     if not isinstance(value, str):
         value = str(value)
     if not value:
@@ -63,6 +63,12 @@ def _encode_path_segment(value: object) -> str:
     # that unescapes encoded slashes before normalising the path (for example
     # Envoy's UNESCAPE_AND_FORWARD) would turn '..%2F..%2Fx' back into a traversal.
     # A resource name has no legitimate reason to contain a dot-segment.
+    #
+    # This deliberately checks the raw value rather than calling
+    # `has_relative_path_segment`, which answers a different question. That helper
+    # inspects a finished path that will not be encoded again, so it must decode
+    # escapes. Here the value still has `quote` ahead of it, which turns '%' into
+    # '%25' and so renders '%2E%2E' and '..%2F..' inert as literal names.
     if _RELATIVE_SEGMENTS.intersection(value.split('/')):
         raise ValueError(f'path segment must not contain a relative path segment, got {value!r}')
 
@@ -430,6 +436,11 @@ class HTTPClient:
         # caller-supplied value was interpolated into the path without encoding.
         if '?' in url or '#' in url:
             raise ValueError(f'request path must not contain a query string or fragment: {url!r}')
+
+        # An empty segment collapses the request onto the collection endpoint, which
+        # turns a delete-one call into a delete-all call.
+        if any(segment == '' for segment in url.split('/')[1:]):
+            raise ValueError(f'request path must not contain an empty path segment: {url!r}')
 
         if has_relative_path_segment(url):
             raise ValueError(

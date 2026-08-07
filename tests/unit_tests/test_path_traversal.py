@@ -125,6 +125,36 @@ def _service_methods_taking_a_path_param() -> set[tuple[str, str]]:
     return found
 
 
+def _service_methods_interpolating_a_url() -> set[tuple[str, str]]:
+    """(class, method) for service methods that build a url with an f-string.
+
+    The table below only knows about methods that already pass ``path_params``, so a
+    newly added method that interpolates instead would be invisible to it. This finds
+    those directly: it was an inline f-string url, not an endpoint constant, that hid
+    ``is_available`` from every earlier search.
+    """
+    found = set()
+    for path in sorted(pathlib.Path(verda.__file__).parent.rglob('*.py')):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(node, ast.ClassDef) or not node.name.endswith('Service'):
+                continue
+            for method in node.body:
+                if not isinstance(method, ast.FunctionDef):
+                    continue
+                for expression in ast.walk(method):
+                    if not isinstance(expression, ast.JoinedStr):
+                        continue
+                    literal = ''.join(
+                        part.value for part in expression.values if isinstance(part, ast.Constant)
+                    )
+                    interpolates = any(
+                        isinstance(part, ast.FormattedValue) for part in expression.values
+                    )
+                    if interpolates and '/' in literal:
+                        found.add((node.name, method.name))
+    return found
+
+
 def _call_sites(services, name):
     """Every single-resource call site that interpolates a caller-supplied value.
 
@@ -279,6 +309,17 @@ class TestPathTraversal:
             'clusters': ClustersService(http_client),
             'jobs': JobDeploymentsService(http_client),
         }
+
+    def test_no_service_builds_a_url_by_interpolation(self):
+        # CLAUDE.md: "Never interpolate a caller-supplied value into the request path."
+        # Without this, a new method that f-strings its url is caught by neither the
+        # coverage table below nor the runtime backstop.
+        interpolating = _service_methods_interpolating_a_url()
+
+        assert not interpolating, (
+            f'these methods build a url with an f-string instead of path_params, so a '
+            f'caller-supplied value can escape its path segment: {sorted(interpolating)}'
+        )
 
     def test_every_method_taking_a_path_param_is_covered(self, services):
         # The table below is hand-maintained; this is what stops it drifting. Two
