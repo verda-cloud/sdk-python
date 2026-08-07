@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import re
 from urllib.parse import quote
 
 import requests
@@ -27,6 +28,9 @@ from verda.exceptions import APIException
 # retargeted at a different endpoint.
 _RELATIVE_SEGMENTS = frozenset({'.', '..'})
 
+# A `{name}` placeholder in a relative url template.
+_PLACEHOLDER = re.compile(r'\{(\w+)\}')
+
 
 def _encode_path_segment(value: str) -> str:
     """Encode a caller-supplied value for safe use as a single URL path segment.
@@ -37,14 +41,22 @@ def _encode_path_segment(value: str) -> str:
     credentials. Encoding with ``safe=''`` also neutralises ``?`` and ``#``, so a
     name cannot inject query parameters either.
 
+    Non-string values are coerced with ``str()``, matching what the f-string
+    interpolation this replaced used to do, so ids passed as ``int`` or ``UUID``
+    keep working.
+
     :param value: a resource name or id supplied by the caller
     :type value: str
-    :raises ValueError: if the value is not a non-empty string, or is a relative
-        path segment that no amount of encoding can make safe
+    :raises ValueError: if the value is empty, or is a relative path segment that no
+        amount of encoding can make safe
     :return: the value encoded as exactly one path segment
     :rtype: str
     """
-    if not isinstance(value, str) or not value:
+    if value is None:
+        raise ValueError(f'path segment must be a non-empty string, got {value!r}')
+    if not isinstance(value, str):
+        value = str(value)
+    if not value:
         raise ValueError(f'path segment must be a non-empty string, got {value!r}')
     if value in _RELATIVE_SEGMENTS:
         # Encoding these as '%2E'/'%2E%2E' does not help: requests decodes
@@ -105,14 +117,17 @@ class HTTPClient:
             each encoded as a single path segment, defaults to None
         :type path_params: dict, optional
 
+        :raises ValueError: if a path parameter cannot be safely encoded as a single
+            path segment, or the url and ``path_params`` do not match
         :raises APIException: an api exception with message and error type code
 
         :return: Response object
         :rtype: requests.Response
         """
-        self._refresh_token_if_expired()
-
+        # Validate before the refresh so a rejected name costs no auth round-trip.
         url = self._add_base_url(self._build_path(url, path_params))
+
+        self._refresh_token_if_expired()
         headers = self._generate_headers()
 
         response = requests.post(url, json=json, headers=headers, params=params, **kwargs)
@@ -144,14 +159,17 @@ class HTTPClient:
             each encoded as a single path segment, defaults to None
         :type path_params: dict, optional
 
+        :raises ValueError: if a path parameter cannot be safely encoded as a single
+            path segment, or the url and ``path_params`` do not match
         :raises APIException: an api exception with message and error type code
 
         :return: Response object
         :rtype: requests.Response
         """
-        self._refresh_token_if_expired()
-
+        # Validate before the refresh so a rejected name costs no auth round-trip.
         url = self._add_base_url(self._build_path(url, path_params))
+
+        self._refresh_token_if_expired()
         headers = self._generate_headers()
 
         response = requests.put(url, json=json, headers=headers, params=params, **kwargs)
@@ -180,14 +198,17 @@ class HTTPClient:
             each encoded as a single path segment, defaults to None
         :type path_params: dict, optional
 
+        :raises ValueError: if a path parameter cannot be safely encoded as a single
+            path segment, or the url and ``path_params`` do not match
         :raises APIException: an api exception with message and error type code
 
         :return: Response object
         :rtype: requests.Response
         """
-        self._refresh_token_if_expired()
-
+        # Validate before the refresh so a rejected name costs no auth round-trip.
         url = self._add_base_url(self._build_path(url, path_params))
+
+        self._refresh_token_if_expired()
         headers = self._generate_headers()
 
         response = requests.get(url, params=params, headers=headers, **kwargs)
@@ -219,14 +240,17 @@ class HTTPClient:
             each encoded as a single path segment, defaults to None
         :type path_params: dict, optional
 
+        :raises ValueError: if a path parameter cannot be safely encoded as a single
+            path segment, or the url and ``path_params`` do not match
         :raises APIException: an api exception with message and error type code
 
         :return: Response object
         :rtype: requests.Response
         """
-        self._refresh_token_if_expired()
-
+        # Validate before the refresh so a rejected name costs no auth round-trip.
         url = self._add_base_url(self._build_path(url, path_params))
+
+        self._refresh_token_if_expired()
         headers = self._generate_headers()
 
         response = requests.patch(url, json=json, headers=headers, params=params, **kwargs)
@@ -258,14 +282,17 @@ class HTTPClient:
             each encoded as a single path segment, defaults to None
         :type path_params: dict, optional
 
+        :raises ValueError: if a path parameter cannot be safely encoded as a single
+            path segment, or the url and ``path_params`` do not match
         :raises APIException: an api exception with message and error type code
 
         :return: Response object
         :rtype: requests.Response
         """
-        self._refresh_token_if_expired()
-
+        # Validate before the refresh so a rejected name costs no auth round-trip.
         url = self._add_base_url(self._build_path(url, path_params))
+
+        self._refresh_token_if_expired()
         headers = self._generate_headers()
 
         response = requests.delete(url, headers=headers, json=json, params=params, **kwargs)
@@ -334,8 +361,9 @@ class HTTPClient:
         :type url: str
         :param path_params: values to substitute into the placeholders
         :type path_params: dict, optional
-        :raises ValueError: if a value cannot be safely encoded as a path segment, or
-            if the url still contains a placeholder that was never given a value
+        :raises ValueError: if a value cannot be safely encoded as a path segment, if
+            the url still contains a placeholder that was never given a value, or if
+            ``path_params`` carries a key the url does not use
         :raises KeyError: if the url has a placeholder missing from ``path_params``
         :return: the relative url with every value encoded and substituted
         :rtype: str
@@ -344,6 +372,10 @@ class HTTPClient:
             if '{' in url:
                 raise ValueError(f'url has an unsubstituted placeholder, got {url!r}')
             return url
+
+        unused = set(path_params) - set(_PLACEHOLDER.findall(url))
+        if unused:
+            raise ValueError(f'unused path parameter {sorted(unused)} for url {url!r}')
 
         encoded = {key: _encode_path_segment(value) for key, value in path_params.items()}
         path = url.format(**encoded)

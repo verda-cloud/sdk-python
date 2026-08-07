@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import re
+import uuid
 from unittest.mock import Mock
 
 import pytest
@@ -137,10 +138,31 @@ class TestBuildPath:
         with pytest.raises(ValueError, match='unsubstituted placeholder'):
             http_client._build_path('/instances/{id}', None)
 
-    def test_unused_path_param_is_rejected(self, http_client):
-        # A value the caller believed was being used but that the template ignores.
+    def test_placeholder_missing_from_path_params_raises(self, http_client):
+        # 'a' is supplied and used, 'b' has no value at all.
         with pytest.raises(KeyError):
+            http_client._build_path('/x/{a}/{b}', {'a': '1'})
+
+    def test_misspelled_key_reports_the_unused_parameter(self, http_client):
+        # Both wrong at once; the unused-key message names the actual mistake.
+        with pytest.raises(ValueError, match='unused path parameter'):
             http_client._build_path('/instances/{id}', {'wrong_name': 'x'})
+
+    def test_path_param_the_template_does_not_use_is_rejected(self, http_client):
+        # A stale key left behind after a template was renamed: the caller believes
+        # the value is being sent, but it silently is not.
+        with pytest.raises(ValueError, match='unused path parameter'):
+            http_client._build_path('/instances/{id}', {'id': 'x', 'stale': 'y'})
+
+    @pytest.mark.parametrize(
+        ('value', 'expected'),
+        [(123, '123'), (uuid.UUID('0c41e387-8b12-4b4b-9c1e-000000000001'), None)],
+    )
+    def test_non_string_values_are_coerced_not_rejected(self, http_client, value, expected):
+        # Before path_params these were interpolated by an f-string, so rejecting them
+        # would be an undocumented breaking change for callers passing ints or UUIDs.
+        path = http_client._build_path('/instances/{id}', {'id': value})
+        assert path == f'/instances/{expected or value}'
 
     def test_substituted_path_keeps_the_template_segment_count(self, http_client):
         # An encoded value can never introduce a separator; assert the invariant holds
@@ -258,6 +280,20 @@ class TestHttpClient:
         with pytest.raises(ValueError, match='path segment must'):
             getattr(http_client, method)('/secrets/{name}', path_params={'name': '..'})
         assert not responses.calls
+
+    @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
+    def test_rejected_path_params_do_not_trigger_a_token_refresh(self, http_client, method):
+        # arrange - the fixture reports an expired token, so a refresh would fire
+        http_client._auth_service.refresh.reset_mock()
+        http_client._auth_service.authenticate.reset_mock()
+
+        # act
+        with pytest.raises(ValueError, match='path segment must'):
+            getattr(http_client, method)('/secrets/{name}', path_params={'name': '..'})
+
+        # assert - an invalid name must not cost an auth round-trip
+        http_client._auth_service.refresh.assert_not_called()
+        http_client._auth_service.authenticate.assert_not_called()
 
     def test_refresh_token_if_expired_refresh_successful(self, http_client):
         # act

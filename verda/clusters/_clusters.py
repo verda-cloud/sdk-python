@@ -23,6 +23,7 @@ from verda.exceptions import APIException
 from verda.http_client import HTTPClient
 
 CLUSTERS_ENDPOINT = '/clusters'
+CLUSTER_AVAILABILITY_ENDPOINT = '/cluster-availability'
 
 # Default shared volume size is 30TB
 DEFAULT_SHARED_VOLUME_SIZE = 30000
@@ -278,8 +279,11 @@ class ClustersService:
             True if the cluster type is available, False otherwise.
         """
         query_params = {'location_code': location_code}
-        url = f'/cluster-availability/{cluster_type}'
-        response = self._http_client.get(url, query_params).text
+        response = self._http_client.get(
+            CLUSTER_AVAILABILITY_ENDPOINT + '/{cluster_type}',
+            query_params,
+            path_params={'cluster_type': cluster_type},
+        ).text
         return response == 'true'
 
     def get_availabilities(self, location_code: str | None = None) -> list[str]:
@@ -292,7 +296,7 @@ class ClustersService:
             List of available cluster types and their details.
         """
         query_params = {'location_code': location_code}
-        response = self._http_client.get('/cluster-availability', params=query_params).json()
+        response = self._http_client.get(CLUSTER_AVAILABILITY_ENDPOINT, params=query_params).json()
         availabilities = response[0]['availabilities']
         return availabilities
 

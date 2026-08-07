@@ -95,7 +95,9 @@ response = self.client.get(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/
 - `path_params` goes last in the call, after any positional `json` body or `params` query dict.
 - Paths with no caller input need no `path_params` (e.g. `self.client.get(INSTANCES_ENDPOINT)`).
 
-The client raises `ValueError` for values that cannot be safely encoded — empty values, and the relative segments `.` and `..` — and for a template placeholder left without a value. A placeholder missing from `path_params` raises `KeyError`.
+Endpoint paths belong in a module-level `<NAME>_ENDPOINT` constant, never an inline string literal — a literal hides the call site from the greps and audits used to check this rule.
+
+The client raises `ValueError` for values that cannot be safely encoded — empty values, and the relative segments `.` and `..` — for a template placeholder left without a value, and for a `path_params` key the template does not use. A placeholder with no value at all raises `KeyError`. Non-string values (`int`, `UUID`) are coerced with `str()`.
 
 Encoding lives in `_encode_path_segment` in `verda/http_client/_http_client.py`. It is private on purpose: `path_params` is the only supported way to put a caller-supplied value into a path, so service modules never hand-roll encoding. As a backstop, `_add_base_url` refuses to send a request whose path would escape the API base path.
 

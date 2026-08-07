@@ -26,9 +26,20 @@ import pytest
 import responses
 
 from verda.clusters import ClustersService
-from verda.containers import ContainersService
+from verda.containers import (
+    ComputeResource,
+    Container,
+    ContainersService,
+    Deployment,
+    EnvVar,
+    EnvVarType,
+    QueueLoadScalingTrigger,
+    ScalingOptions,
+    ScalingPolicy,
+    ScalingTriggers,
+)
 from verda.instances import InstancesService
-from verda.job_deployments import JobDeploymentsService
+from verda.job_deployments import JobDeployment, JobDeploymentsService
 from verda.ssh_keys import SSHKeysService
 from verda.startup_scripts import StartupScriptsService
 from verda.volumes import VolumesService
@@ -58,11 +69,22 @@ REJECTED_NAMES = ['.', '..', '', None]
 
 ANY_URL = re.compile(r'.*')
 
-
-def _register_catch_all():
-    """Answer any request so the prepared URL can be inspected afterwards."""
-    for method in (responses.GET, responses.POST, responses.PUT, responses.PATCH, responses.DELETE):
-        responses.add(method, ANY_URL, json={}, status=200)
+# Bodies for the methods that need more than a name; their content is irrelevant,
+# only the request path is under test.
+_CONTAINER = Container(image='img', exposed_port=80)
+_COMPUTE = ComputeResource(name='General Purpose 2D:2v', size=1)
+_DEPLOYMENT = Deployment(name='d', containers=[_CONTAINER], compute=_COMPUTE)
+_JOB = JobDeployment(name='j', containers=[_CONTAINER], compute=_COMPUTE)
+_SCALING = ScalingOptions(
+    min_replica_count=1,
+    max_replica_count=5,
+    scale_down_policy=ScalingPolicy(delay_seconds=300),
+    scale_up_policy=ScalingPolicy(delay_seconds=60),
+    queue_message_ttl_seconds=3600,
+    concurrent_requests_per_replica=10,
+    scaling_triggers=ScalingTriggers(queue_load=QueueLoadScalingTrigger(threshold=0.75)),
+)
+_ENV_VARS = [EnvVar(name='K', value_or_reference_to_secret='v', type=EnvVarType.PLAIN)]
 
 
 def _call_sites(services, name):
@@ -161,6 +183,42 @@ def _call_sites(services, name):
             lambda: services['clusters'].get_by_id(name),
             f'{BASE_PATH}/clusters/',
         ),
+        (
+            'containers.update_deployment',
+            lambda: containers.update_deployment(name, _DEPLOYMENT),
+            deployments,
+        ),
+        (
+            'containers.update_deployment_scaling_options',
+            lambda: containers.update_deployment_scaling_options(name, _SCALING),
+            deployments,
+        ),
+        (
+            'containers.add_deployment_environment_variables',
+            lambda: containers.add_deployment_environment_variables(name, 'c', _ENV_VARS),
+            deployments,
+        ),
+        (
+            'containers.update_deployment_environment_variables',
+            lambda: containers.update_deployment_environment_variables(name, 'c', _ENV_VARS),
+            deployments,
+        ),
+        (
+            'containers.delete_deployment_environment_variables',
+            lambda: containers.delete_deployment_environment_variables(name, 'c', ['K']),
+            deployments,
+        ),
+        (
+            'instances.is_available',
+            lambda: services['instances'].is_available(name),
+            f'{BASE_PATH}/instance-availability/',
+        ),
+        (
+            'clusters.is_available',
+            lambda: services['clusters'].is_available(name),
+            f'{BASE_PATH}/cluster-availability/',
+        ),
+        ('jobs.update', lambda: jobs.update(name, _JOB), job_deployments),
         ('jobs.get_by_name', lambda: jobs.get_by_name(name), job_deployments),
         ('jobs.delete', lambda: jobs.delete(name), job_deployments),
         ('jobs.get_status', lambda: jobs.get_status(name), job_deployments),
@@ -222,6 +280,9 @@ class TestPathTraversal:
                 except Exception:  # response shape is irrelevant here
                     pass
 
+                # Without this the test passes vacuously if the call raises before
+                # sending -- exactly the regression it exists to catch.
+                assert mock.calls, f'{label} sent no request for an ordinary name'
                 for path in [c.request.path_url for c in mock.calls]:
                     assert path.startswith(f'{expected_prefix}my-resource-1'), (
                         f'{label} changed shape for an ordinary name: {path}'

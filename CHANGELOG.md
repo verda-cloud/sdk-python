@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed a path traversal issue where a resource name or id containing `../` was resolved while the request was prepared, retargeting the call at a different API endpoint under the SDK's own credentials (for example `containers.delete_deployment('../../v1/instances')` issued `DELETE /v1/instances`). This also prevents a name from injecting query parameters, such as overriding the `force` flag of `containers.delete_secret`.
 
-  Caller-supplied path values are no longer interpolated into the request path. `HTTPClient.get/post/put/patch/delete` now accept a `path_params` mapping whose values are percent-encoded as a single path segment before substitution, and all service modules pass names and ids that way. Values that cannot be made safe by encoding — `.`, `..`, and empty values — raise `ValueError`. As a backstop, `HTTPClient` refuses to send a request whose path would escape the API base path.
+  Caller-supplied path values are no longer interpolated into the request path. `HTTPClient.get/post/put/patch/delete` now accept a `path_params` mapping whose values are percent-encoded as a single path segment before substitution, and all service modules pass names and ids that way. This covers `instances.is_available()` and `clusters.is_available()`, where the affected value was the `instance_type`/`cluster_type` query. Values that cannot be made safe by encoding — `.`, `..`, and empty values — raise `ValueError`. As a backstop, `HTTPClient` refuses to send a request whose path would escape the API base path.
 
 ### Added
 
