@@ -149,6 +149,13 @@ class InferenceClient:
                 f'endpoint_base_url must not contain a relative path segment, '
                 f'got {endpoint_base_url!r}'
             )
+        # The slicing is `rindex('/')`, which without a path finds the '//' of the
+        # scheme: 'https://host' yields base_domain 'https:/', making the async status
+        # url 'https://status/host' -- a different host, still carrying the key.
+        if not parsed_url.path.strip('/'):
+            raise InferenceClientError(
+                f'endpoint_base_url must include the deployment path, got {endpoint_base_url!r}'
+            )
 
         self.inference_key = inference_key
         self.endpoint_base_url = endpoint_base_url.rstrip('/')
@@ -205,11 +212,10 @@ class InferenceClient:
     def _build_url(self, path: str) -> str:
         """Construct the full URL by joining the base URL with the path.
 
-        ``path`` is a caller-chosen API path and may span several segments, so it is
-        not encoded as one. It must still stay under the deployment's base url:
-        ``endpoint_base_url`` ends with this deployment's name, so a relative segment
-        would walk the request onto a different deployment while still carrying the
-        caller's inference key.
+        ``path`` may span several segments, so it is not checked as one. It must still
+        stay under the deployment's base url: ``endpoint_base_url`` ends with this
+        deployment's name, so a relative segment would walk the request onto a
+        different deployment while still carrying the caller's inference key.
 
         Args:
             path: API path relative to the deployment's endpoint.

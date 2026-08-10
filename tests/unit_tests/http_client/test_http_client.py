@@ -38,40 +38,43 @@ def test_encode_path_segment_leaves_ordinary_names_unchanged(value):
 
 
 @pytest.mark.parametrize(
-    ('value', 'expected'),
+    'value',
     [
-        ('a/b', 'a%2Fb'),
-        ('docker.io/myorg', 'docker.io%2Fmyorg'),
+        'a/b',
+        'docker.io/myorg',
+        '../../v1/balance',
+        '../ssh-keys',
+        'nested/../../escape',
+        'a/./b',
+        'a/..',
+        # some servers normalise '\' to a separator
+        '..\\..\\v1\\balance',
+        'a\\b',
     ],
 )
-def test_encode_path_segment_encodes_path_separators(value, expected):
-    assert _encode_path_segment(value) == expected
-
-
-@pytest.mark.parametrize(
-    'value',
-    ['../../v1/balance', '../ssh-keys', 'nested/../../escape', 'a/./b', 'a/..'],
-)
-def test_encode_path_segment_rejects_values_containing_dot_segments(value):
-    # Encoding '/' as '%2F' is not sufficient on its own: any intermediary that
-    # unescapes encoded slashes before normalising the path (Envoy's
-    # UNESCAPE_AND_FORWARD, some gateways and servlet containers) turns
-    # '..%2F..%2Fv1%2Finstances' back into a working traversal. A resource name has
-    # no legitimate reason to contain a dot-segment, so refuse it outright.
-    with pytest.raises(ValueError, match='relative path segment'):
+def test_encode_path_segment_rejects_path_separators(value):
+    # '%2F' survives to the wire, but any intermediary that unescapes before
+    # normalising (Envoy's UNESCAPE_AND_FORWARD) turns '..%2F..%2Fv1%2Finstances'
+    # back into a working traversal.
+    with pytest.raises(ValueError, match='only letters, digits'):
         _encode_path_segment(value)
 
 
 @pytest.mark.parametrize(
-    ('value', 'expected'),
-    [
-        ('x?force=true&', 'x%3Fforce%3Dtrue%26'),
-        ('name#fragment', 'name%23fragment'),
-        ('a b', 'a%20b'),
-    ],
+    'value',
+    ['x?force=true&', 'name#fragment', 'a b', 'a;b', 'ünicode', 'name@host', 'a+b'],
 )
-def test_encode_path_segment_encodes_query_and_fragment_delimiters(value, expected):
-    assert _encode_path_segment(value) == expected
+def test_encode_path_segment_rejects_characters_outside_the_unreserved_set(value):
+    # These were previously percent-encoded and sent.
+    with pytest.raises(ValueError, match='only letters, digits'):
+        _encode_path_segment(value)
+
+
+@pytest.mark.parametrize('value', ['%2E', '%2e%2E', '..%2F..', 'my%20deployment', '100%'])
+def test_encode_path_segment_rejects_a_percent_sign(value):
+    # A pre-encoded name is caller error: pass the raw name.
+    with pytest.raises(ValueError, match='only letters, digits'):
+        _encode_path_segment(value)
 
 
 @pytest.mark.parametrize('value', ['.', '..'])
@@ -82,13 +85,6 @@ def test_encode_path_segment_rejects_relative_segments(value):
     # before the request goes on the wire.
     with pytest.raises(ValueError, match='relative path segment'):
         _encode_path_segment(value)
-
-
-@pytest.mark.parametrize('value', ['%2E', '%2e%2E', '..%2F..'])
-def test_encode_path_segment_escapes_percent_so_encoded_dots_stay_literal(value):
-    # A literal '%' is itself encoded to '%25', so these can never decode back into
-    # a dot-segment on the wire.
-    assert _encode_path_segment(value) == value.replace('%', '%25')
 
 
 def test_encode_path_segment_rejects_an_empty_value():
@@ -133,21 +129,16 @@ class TestBuildPath:
         assert path == '/container-deployments/dep/replicas/r-1'
 
     @pytest.mark.parametrize(
-        ('value', 'encoded'),
-        [
-            ('a/b', 'a%2Fb'),
-            ('x?force=true&', 'x%3Fforce%3Dtrue%26'),
-            ('name#frag', 'name%23frag'),
-            ('a b', 'a%20b'),
-        ],
+        'value',
+        ['a/b', 'x?force=true&', 'name#frag', 'a b', '..\\..\\x', '%2E%2E'],
     )
-    def test_hostile_values_are_encoded_into_one_segment(self, http_client, value, encoded):
-        path = http_client._build_path('/secrets/{name}', {'name': value})
-        assert path == f'/secrets/{encoded}'
+    def test_hostile_values_are_rejected(self, http_client, value):
+        with pytest.raises(ValueError, match='only letters, digits'):
+            http_client._build_path('/secrets/{name}', {'name': value})
 
     @pytest.mark.parametrize('value', ['../../v1/instances', 'nested/../escape'])
     def test_values_containing_dot_segments_are_rejected(self, http_client, value):
-        with pytest.raises(ValueError, match='relative path segment'):
+        with pytest.raises(ValueError, match='path segment must'):
             http_client._build_path('/secrets/{name}', {'name': value})
 
     @pytest.mark.parametrize('value', ['.', '..', '', None])
@@ -233,39 +224,30 @@ class TestHttpClient:
             '/instances/../ssh-keys',
             '/volumes/.',
             '/scripts/./x',
-            # requests decodes percent-encoded unreserved characters before sending,
-            # so these reach the server as real dot-segments.
-            '/container-deployments/%2E%2E',
-            '/volumes/%2e',
         ],
     )
     def test_add_base_url_rejects_relative_path_segments(self, http_client, path):
-        # A call site that forgets to encode its path segment must not be able to
-        # retarget the request at a different endpoint.
+        # A call site that skips path_params must not be able to retarget the request.
         with pytest.raises(ValueError, match='escape the API base path'):
             http_client._add_base_url(path)
-
-    def test_add_base_url_still_detects_traversal_beside_a_malformed_escape(self, http_client):
-        # A malformed escape must not stop the dot-segment check from running.
-        with pytest.raises(ValueError, match='escape the API base path'):
-            http_client._add_base_url('/x/%2E%2E/%zz')
 
     @pytest.mark.parametrize(
         'path',
         [
+            '/container-deployments/%2E%2E',
+            '/volumes/%2e',
+            '/x/%2E%2E/%zz',
             '/container-deployments/..%2F..%2Fv1%2Finstances',
             '/container-deployments/..%2f..%2fv1%2Finstances',
             '/instances/%2E%2E%2Fssh-keys',
             '/volumes/..%5C..%5Cadmin',
+            '/volumes/..\\..\\admin',
         ],
     )
-    def test_add_base_url_rejects_traversal_hidden_behind_an_encoded_separator(
-        self, http_client, path
-    ):
-        # The backstop exists for a call site that forgot to encode. Percent-encoding
-        # the separator must not hide the dot-segments from it, because an
-        # intermediary that unescapes encoded slashes restores the traversal.
-        with pytest.raises(ValueError, match='escape the API base path'):
+    def test_add_base_url_rejects_an_escape_or_backslash_outright(self, http_client, path):
+        # Neither can appear in a path the client built: `_encode_path_segment` refuses
+        # both and endpoint constants are plain literals.
+        with pytest.raises(ValueError, match='unencoded value'):
             http_client._add_base_url(path)
 
     @pytest.mark.parametrize('path', ['/container-deployments/', '/volumes//x'])
@@ -290,9 +272,8 @@ class TestHttpClient:
         'path',
         [
             '/container-deployments/my-deployment',
-            '/container-deployments/%252E%252E',
-            # an encoded slash with no dot-segment around it is a legitimate name
-            '/container-registry-credentials/docker.io%2Fmyorg',
+            '/container-registry-credentials/my-dockerhub-creds',
+            '/instance-availability/1H100.80S.22V',
             '/volumes/name.with.dots',
             '/volumes/..leading',
             '/long-term/periods/clusters',
@@ -337,19 +318,32 @@ class TestHttpClient:
 
     @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
     @responses.activate
-    def test_request_methods_encode_path_params(self, http_client, method):
+    def test_request_methods_substitute_path_params(self, http_client, method):
         # arrange
         responses.add(getattr(responses, method.upper()), re.compile(r'.*'), json={}, status=200)
 
         # act
         getattr(http_client, method)(
-            '/container-deployments/{name}/status', path_params={'name': 'x?force=true&'}
+            '/container-deployments/{name}/status', path_params={'name': 'my-deployment'}
         )
 
         # assert
         assert responses.calls[0].request.path_url == (
-            '/v1/container-deployments/x%3Fforce%3Dtrue%26/status'
+            '/v1/container-deployments/my-deployment/status'
         )
+
+    @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
+    @responses.activate
+    def test_request_methods_reject_a_hostile_path_param_before_sending(self, http_client, method):
+        # arrange
+        responses.add(getattr(responses, method.upper()), re.compile(r'.*'), json={}, status=200)
+
+        # act / assert
+        with pytest.raises(ValueError, match='path segment must'):
+            getattr(http_client, method)(
+                '/container-deployments/{name}/status', path_params={'name': 'x?force=true&'}
+            )
+        assert not responses.calls
 
     @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
     @responses.activate

@@ -49,28 +49,13 @@ from verda.volumes import VolumesService
 
 BASE_PATH = '/v1'
 
-# Hostile name -> the single path segment it must be reduced to on the wire.
-# Expectations are written out literally rather than derived from the SDK helper, so
-# the test fails if the encoding rule itself regresses.
-HOSTILE_NAMES = [
-    # query-string / fragment smuggling
-    ('x?force=true&', 'x%3Fforce%3Dtrue%26'),
-    ('name#frag', 'name%23frag'),
-    # a literal '%' must be escaped so it cannot decode into a dot-segment later
-    ('%2E%2E', '%252E%252E'),
-    ('..%2F..', '..%252F..'),
-    # a slash with no dot-segment is encoded, not refused: registry credential
-    # names legitimately look like 'docker.io/myorg'
-    ('a/b', 'a%2Fb'),
-]
-
-# Names that cannot be made safe by encoding and must be refused outright:
-#  - '.' and '..' are RFC 3986 dot-segments, and '%2E' is decoded back to '.' by
-#    requests before the request is sent
-#  - a dot-segment anywhere in the value survives '%2F' encoding if any intermediary
-#    unescapes encoded slashes before normalising the path
-#  - an empty name collapses the URL onto the collection endpoint, turning a
-#    delete-one call into a delete-all call
+# Names outside the RFC 3986 unreserved set, refused rather than encoded:
+#  - '.' and '..' are dot-segments, and requests decodes '%2E' back to '.'
+#  - a separator ('/', or '\' on servers that normalise it) addresses a different
+#    endpoint, and '%2F' holds only until an intermediary unescapes it
+#  - '?' and '#' start a query string or fragment
+#  - '%' makes a name ambiguous with the two cases above
+#  - an empty name turns a delete-one call into a delete-all call
 REJECTED_NAMES = [
     '.',
     '..',
@@ -81,6 +66,16 @@ REJECTED_NAMES = [
     '../ssh-keys',
     '../../v1/balance',
     'nested/../../escape',
+    '..\\..\\v1\\instances',
+    'nested\\..\\..\\escape',
+    'a/b',
+    'docker.io/myorg',
+    'x?force=true&',
+    'name#frag',
+    '%2E%2E',
+    '..%2F..',
+    'my%20deployment',
+    'a b',
 ]
 
 ANY_URL = re.compile(r'.*')
@@ -339,24 +334,6 @@ class TestPathTraversal:
             f'by this file; add them to _call_sites: {sorted(missing)}'
         )
 
-    @pytest.mark.parametrize(('name', 'encoded'), HOSTILE_NAMES)
-    def test_hostile_name_stays_within_its_endpoint(self, services, name, encoded):
-        for label, call, expected_prefix in _call_sites(services, name):
-            with responses.RequestsMock(assert_all_requests_are_fired=False) as mock:
-                for method in ('GET', 'POST', 'PUT', 'PATCH', 'DELETE'):
-                    mock.add(method, ANY_URL, json={}, status=200)
-                try:
-                    call()
-                except Exception:  # response-shape errors are irrelevant here
-                    pass
-
-                sent = [c.request.path_url for c in mock.calls]
-                assert sent, f'{label}({name!r}) sent no request'
-                for path in sent:
-                    assert path.startswith(expected_prefix + encoded), (
-                        f'{label}({name!r}) escaped its endpoint: {path}'
-                    )
-
     @pytest.mark.parametrize('name', REJECTED_NAMES)
     def test_unsafe_name_is_rejected_before_a_request_is_sent(self, services, name):
         for label, call, _ in _call_sites(services, name):
@@ -390,7 +367,15 @@ class TestPathTraversal:
         # smuggle an earlier `force=true` into the query string.
         with responses.RequestsMock(assert_all_requests_are_fired=False) as mock:
             mock.add('DELETE', ANY_URL, json={}, status=200)
-            services['containers'].delete_secret('x?force=true&', force=False)
+            with pytest.raises(ValueError, match='path segment must'):
+                services['containers'].delete_secret('x?force=true&', force=False)
+            assert not mock.calls, 'a name carrying a query string reached the wire'
+
+    def test_the_force_flag_still_reaches_the_query_string(self, services):
+        # Without this the test above passes even if delete_secret stopped sending it.
+        with responses.RequestsMock(assert_all_requests_are_fired=False) as mock:
+            mock.add('DELETE', ANY_URL, json={}, status=200)
+            services['containers'].delete_secret('my-api-key', force=False)
 
             path = mock.calls[0].request.path_url
             assert path.count('force=') == 1, f'force flag was polluted: {path}'

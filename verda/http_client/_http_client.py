@@ -21,35 +21,38 @@ import requests
 
 from verda._version import __version__
 from verda.exceptions import APIException
-from verda.helpers import _RELATIVE_SEGMENTS, has_relative_path_segment
+from verda.helpers import _RELATIVE_SEGMENTS
 
 # A `{name}` placeholder in a relative url template.
 _PLACEHOLDER = re.compile(r'\{(\w+)\}')
 
+# Anything outside the RFC 3986 unreserved set. Every value the API takes in a path
+# position is a slug, an id or a machine type: 'my-deployment', '1A100.22V', a UUID.
+_UNSAFE_IN_SEGMENT = re.compile(r'[^A-Za-z0-9._~-]')
+
+# The unreserved set plus the '/' between the segments of an endpoint constant.
+_ALLOWED_IN_PATH = re.compile(r'^[A-Za-z0-9._~/-]*$')
+
 
 def _encode_path_segment(value: object) -> str:
-    """Encode a caller-supplied value for safe use as a single URL path segment.
+    """Check a caller-supplied value is safe as a single URL path segment.
 
-    Resource names and ids are interpolated into request paths. An unencoded value
-    containing ``/`` is resolved by ``requests`` while the request is prepared, which
-    silently retargets the call at a different API endpoint under the caller's own
-    credentials. Encoding with ``safe=''`` also neutralises ``?`` and ``#``, so a
-    name cannot inject query parameters either.
+    Only the unreserved set is allowed. Encoding a separator is not sufficient:
+    ``requests`` decodes ``%2E`` back to ``.`` before sending, and an intermediary
+    that unescapes ``%2F`` before normalising the path restores a traversal.
 
-    ``int`` and ``UUID`` are coerced with ``str()``, matching what the f-string
-    interpolation this replaced used to do, so ids passed as either keep working. Any
-    other type is refused: ``str()`` on it would yield a nonsense segment (``b'abc'``
-    becomes ``"b'abc'"``) and a confusing 404 in place of an error at the call site.
+    ``int`` and ``UUID`` are coerced with ``str()``. Other types are refused, since
+    ``str()`` on them yields a nonsense segment (``b'abc'`` becomes ``"b'abc'"``).
 
     Args:
         value: A resource name or id supplied by the caller.
 
     Returns:
-        The value encoded as exactly one path segment.
+        The value as exactly one path segment.
 
     Raises:
-        ValueError: If the value is empty, is not a str, int or UUID, or contains a
-            relative path segment that no amount of encoding can make safe.
+        ValueError: If the value is empty, is not a str, int or UUID, contains a
+            character outside the unreserved set, or is a relative path segment.
     """
     if not isinstance(value, str | int | UUID) or isinstance(value, bool):
         raise ValueError(f'path segment must be a str, int or UUID, got {type(value).__name__}')
@@ -57,21 +60,15 @@ def _encode_path_segment(value: object) -> str:
         value = str(value)
     if not value:
         raise ValueError(f'path segment must be a non-empty string, got {value!r}')
-    # Encoding is not sufficient for dot-segments. '%2E' is decoded back to '.' by
-    # requests before the request is sent, and encoding '/' as '%2F' only holds as
-    # long as nothing between here and the server unescapes it -- an intermediary
-    # that unescapes encoded slashes before normalising the path (for example
-    # Envoy's UNESCAPE_AND_FORWARD) would turn '..%2F..%2Fx' back into a traversal.
-    # A resource name has no legitimate reason to contain a dot-segment.
-    #
-    # This deliberately checks the raw value rather than calling
-    # `has_relative_path_segment`, which answers a different question. That helper
-    # inspects a finished path that will not be encoded again, so it must decode
-    # escapes. Here the value still has `quote` ahead of it, which turns '%' into
-    # '%25' and so renders '%2E%2E' and '..%2F..' inert as literal names.
-    if _RELATIVE_SEGMENTS.intersection(value.split('/')):
-        raise ValueError(f'path segment must not contain a relative path segment, got {value!r}')
+    if _UNSAFE_IN_SEGMENT.search(value):
+        raise ValueError(
+            f'path segment must contain only letters, digits and "-._~", got {value!r}'
+        )
+    # Only reachable as the whole value: a separator cannot pass the check above.
+    if value in _RELATIVE_SEGMENTS:
+        raise ValueError(f'path segment must not be a relative path segment, got {value!r}')
 
+    # A no-op for an allowlisted value, kept in case the allowlist widens.
     return quote(value, safe='')
 
 
@@ -368,13 +365,12 @@ class HTTPClient:
     def _build_path(self, url: str, path_params: dict | None) -> str:
         """Substitutes caller-supplied values into a relative url template.
 
-        Each value is encoded as exactly one path segment, so a resource name or id
+        Each value is checked as exactly one path segment, so a resource name or id
         cannot introduce a path separator, walk out of its segment, or start a query
-        string. Call sites pass values as data rather than interpolating them, which
-        means the encoding cannot be forgotten.
+        string.
 
         Example:
-        ``_build_path('/instances/{id}', {'id': 'a/b'})`` returns ``'/instances/a%2Fb'``
+        ``_build_path('/instances/{id}', {'id': 'abc'})`` returns ``'/instances/abc'``
 
         Args:
             url: A relative url, optionally containing ``{name}`` placeholders.
@@ -403,9 +399,8 @@ class HTTPClient:
         except KeyError as error:
             raise ValueError(f'no value given for placeholder {error} in url {url!r}') from error
 
-        # An encoded value can never contain a separator, so substitution must not
-        # change the shape of the route. Belt and braces against a future change to
-        # the encoding rules.
+        # A checked value cannot contain a separator, so substitution must not change
+        # the shape of the route.
         if path.count('/') != url.count('/'):
             raise ValueError(f'path parameter added a path segment to {url!r}')
 
@@ -419,9 +414,8 @@ class HTTPClient:
         and the base url is 'https://api.verda.com/v1'
         then this method will return 'https://api.verda.com/v1/balance'
 
-        Acts as a backstop for the per-segment encoding done by the service modules:
-        a relative path segment that reached this point would be resolved away by
-        ``requests`` (or by the server), pointing the request at a different endpoint.
+        Backstop for a call site that built a path without ``path_params``. Re-asserts
+        the same allowlist on the finished path.
 
         Args:
             url: A relative url path.
@@ -432,17 +426,20 @@ class HTTPClient:
         Raises:
             ValueError: If the path could escape the API base path.
         """
-        # Query data is passed separately as `params`, so a '?' or '#' here means a
-        # caller-supplied value was interpolated into the path without encoding.
+        # Query data is passed separately as `params`.
         if '?' in url or '#' in url:
             raise ValueError(f'request path must not contain a query string or fragment: {url!r}')
 
-        # An empty segment collapses the request onto the collection endpoint, which
-        # turns a delete-one call into a delete-all call.
+        # Catches '%', which requests may decode into a separator or a dot, and '\',
+        # which some servers normalise to '/'.
+        if not _ALLOWED_IN_PATH.match(url):
+            raise ValueError(f'request path must not contain an unencoded value: {url!r}')
+
+        # An empty segment collapses a delete-one call onto the collection endpoint.
         if any(segment == '' for segment in url.split('/')[1:]):
             raise ValueError(f'request path must not contain an empty path segment: {url!r}')
 
-        if has_relative_path_segment(url):
+        if _RELATIVE_SEGMENTS.intersection(url.split('/')):
             raise ValueError(
                 f'refusing to send a request whose path would escape the API base path: {url!r}'
             )

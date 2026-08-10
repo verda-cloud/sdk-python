@@ -77,7 +77,7 @@ Service modules call the shared `HTTPClient` (`verda/http_client/`), which expos
 
 **Never interpolate a caller-supplied value into the request path.** Resource names and IDs arrive from application input. A value containing `../` is resolved while the request is prepared and retargets the call at a different API endpoint under the SDK's own credentials; a value containing `?` injects query parameters.
 
-Pass such values as `path_params`. The client percent-encodes each one as exactly one path segment before substituting it:
+Pass such values as `path_params`. The client validates each one as exactly one path segment before substituting it:
 
 ```python
 # correct
@@ -97,19 +97,17 @@ response = self.client.get(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/
 
 Endpoint paths belong in a module-level `<NAME>_ENDPOINT` constant, never an inline string literal — a literal hides the call site from the greps and audits used to check this rule.
 
-The client raises `ValueError` for values it cannot make safe — empty/`None`, and any value with a relative path segment (`.` or `..` between slashes) — and for any template/`path_params` mismatch. Non-string values (`int`, `UUID`) are coerced with `str()`.
+A path value must match `[A-Za-z0-9._~-]+` (the RFC 3986 unreserved set). Anything else raises `ValueError`, as do `.`, `..`, empty/`None`, a non-`str`/`int`/`UUID` type, and any template/`path_params` mismatch. `int` and `UUID` are coerced with `str()`.
 
-Dot-segments are rejected rather than encoded because encoding does not hold end to end: `requests` decodes `%2E` back to `.` before sending, and `%2F` is restored by any intermediary that unescapes encoded slashes before normalising the path. A slash on its own is fine and is encoded (`docker.io/myorg` → `docker.io%2Fmyorg`).
-
-Checking a **finished path** for "would a URL parser resolve this away?" is `verda.helpers.has_relative_path_segment`. It strips any query string, decodes the escapes `requests` decodes, and decodes encoded separators (`%2F`, `%5C`) because an intermediary may unescape them before normalising. Use it — do not re-implement it. `InferenceClient` once carried a second copy that missed `%2E%2E`.
-
-`_encode_path_segment` checks the **raw value** instead, on purpose: that value still has `quote()` ahead of it, which escapes `%` and so makes `%2E%2E` and `..%2F..` inert as literal names. Using the finished-path helper there would reject them for no reason. Different question, different check — keep them apart.
+Reject, do not encode: `requests` decodes `%2E` back to `.` before sending, and an intermediary that unescapes `%2F` before normalising the path restores a traversal. Do not encode a rejected name at the call site — pass the raw name.
 
 `tests/unit_tests/test_path_traversal.py` enforces its own completeness: it reads the source for methods passing `path_params` and fails if any is absent from its `_call_sites` table.
 
 All five verbs delegate to a single private `_request`, which is where the url is built and validated. Add new verbs by delegating to it, never by calling `requests` directly.
 
-Encoding lives in `_encode_path_segment` in `verda/http_client/_http_client.py`. It is private on purpose: `path_params` is the only supported way to put a caller-supplied value into a path, so service modules never hand-roll encoding. As a backstop, `_add_base_url` refuses to send a request whose path would escape the API base path.
+The check is `_encode_path_segment` in `verda/http_client/_http_client.py`; `path_params` is the only supported way to put a caller-supplied value into a path. `_add_base_url` re-asserts the same allowlist on the finished path, as a backstop for a call site that skips `path_params`.
+
+`verda.helpers.has_relative_path_segment` strips the query string and decodes escapes and encoded separators. It is for `InferenceClient` only, whose `path` spans several segments and may carry a query string. Do not use it in the http client, and do not re-implement it.
 
 ## Code style
 

@@ -88,3 +88,17 @@ class TestEndpointBaseUrl:
         # into the async status/result urls without further checks.
         with pytest.raises(InferenceClientError, match='relative path segment'):
             InferenceClient(inference_key='k', endpoint_base_url=base_url)
+
+    @pytest.mark.parametrize(
+        'base_url',
+        ['https://containers.example.com', 'https://containers.example.com/'],
+    )
+    def test_base_url_without_a_deployment_path_is_rejected(self, base_url):
+        # rindex('/') would find the '//' of the scheme, making base_domain 'https:/'
+        # and the async status url 'https://status/containers.example.com'.
+        with pytest.raises(InferenceClientError, match='must include the deployment path'):
+            InferenceClient(inference_key='k', endpoint_base_url=base_url)
+
+    def test_the_deployment_name_is_sliced_out_correctly(self, inference_client):
+        assert inference_client.deployment_name == 'my-deployment'
+        assert inference_client.base_domain == 'https://inference.example.com/v1'
