@@ -23,6 +23,7 @@ from dataclasses_json import Undefined, dataclass_json
 from verda.constants import InstanceStatus, Locations
 
 INSTANCES_ENDPOINT = '/instances'
+INSTANCE_AVAILABILITY_ENDPOINT = '/instance-availability'
 
 Contract = Literal['LONG_TERM', 'PAY_AS_YOU_GO', 'SPOT']
 Pricing = Literal['DYNAMIC_PRICE', 'FIXED_PRICE']
@@ -145,7 +146,9 @@ class InstancesService:
         Raises:
             HTTPError: If the instance is not found or other API error occurs.
         """
-        instance_dict = self._http_client.get(INSTANCES_ENDPOINT + f'/{id}').json()
+        instance_dict = self._http_client.get(
+            INSTANCES_ENDPOINT + '/{id}', path_params={'id': id}
+        ).json()
         return Instance.from_dict(instance_dict, infer_missing=True)
 
     def create(
@@ -296,8 +299,11 @@ class InstancesService:
         """
         is_spot = str(is_spot).lower()
         query_params = {'isSpot': is_spot, 'location_code': location_code}
-        url = f'/instance-availability/{instance_type}'
-        return self._http_client.get(url, query_params).json()
+        return self._http_client.get(
+            INSTANCE_AVAILABILITY_ENDPOINT + '/{instance_type}',
+            query_params,
+            path_params={'instance_type': instance_type},
+        ).json()
 
     def get_availabilities(
         self, is_spot: bool | None = None, location_code: str | None = None
@@ -313,4 +319,4 @@ class InstancesService:
         """
         is_spot = str(is_spot).lower() if is_spot is not None else None
         query_params = {'isSpot': is_spot, 'location_code': location_code}
-        return self._http_client.get('/instance-availability', params=query_params).json()
+        return self._http_client.get(INSTANCE_AVAILABILITY_ENDPOINT, params=query_params).json()

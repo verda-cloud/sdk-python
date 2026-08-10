@@ -85,7 +85,8 @@ class SSHKeysService:
         :return: SSHKey object
         :rtype: SSHKey
         """
-        key_dict = self._http_client.get(SSHKEYS_ENDPOINT + f'/{id}').json()[0]
+        response = self._http_client.get(SSHKEYS_ENDPOINT + '/{id}', path_params={'id': id})
+        key_dict = response.json()[0]
         key_object = SSHKey(key_dict['id'], key_dict['name'], key_dict['key'])
         return key_object
 
@@ -105,7 +106,7 @@ class SSHKeysService:
         :param id: SSH key id
         :type id: str
         """
-        self._http_client.delete(SSHKEYS_ENDPOINT + f'/{id}')
+        self._http_client.delete(SSHKEYS_ENDPOINT + '/{id}', path_params={'id': id})
         return
 
     def create(self, name: str, key: str) -> SSHKey:

@@ -83,7 +83,9 @@ class JobDeploymentsService:
 
     def get_by_name(self, job_name: str) -> JobDeployment:
         """Return a job deployment by name."""
-        response = self._http_client.get(f'{JOB_DEPLOYMENTS_ENDPOINT}/{job_name}')
+        response = self._http_client.get(
+            JOB_DEPLOYMENTS_ENDPOINT + '/{job_name}', path_params={'job_name': job_name}
+        )
         return JobDeployment.from_dict(response.json(), infer_missing=True)
 
     def create(self, deployment: JobDeployment) -> JobDeployment:
@@ -97,34 +99,49 @@ class JobDeploymentsService:
     def update(self, job_name: str, deployment: JobDeployment) -> JobDeployment:
         """Update an existing job deployment."""
         response = self._http_client.patch(
-            f'{JOB_DEPLOYMENTS_ENDPOINT}/{job_name}',
+            JOB_DEPLOYMENTS_ENDPOINT + '/{job_name}',
             json=strip_none_values(deployment.to_dict()),
+            path_params={'job_name': job_name},
         )
         return JobDeployment.from_dict(response.json(), infer_missing=True)
 
     def delete(self, job_name: str, timeout: float | None = None) -> None:
         """Delete a job deployment."""
         params = {'timeout': timeout} if timeout is not None else None
-        self._http_client.delete(f'{JOB_DEPLOYMENTS_ENDPOINT}/{job_name}', params=params)
+        self._http_client.delete(
+            JOB_DEPLOYMENTS_ENDPOINT + '/{job_name}',
+            params=params,
+            path_params={'job_name': job_name},
+        )
 
     def get_status(self, job_name: str) -> JobDeploymentStatus:
         """Return the current status for a job deployment."""
-        response = self._http_client.get(f'{JOB_DEPLOYMENTS_ENDPOINT}/{job_name}/status')
+        response = self._http_client.get(
+            JOB_DEPLOYMENTS_ENDPOINT + '/{job_name}/status', path_params={'job_name': job_name}
+        )
         return JobDeploymentStatus(response.json()['status'])
 
     def get_scaling_options(self, job_name: str) -> JobScalingOptions:
         """Return scaling options for a job deployment."""
-        response = self._http_client.get(f'{JOB_DEPLOYMENTS_ENDPOINT}/{job_name}/scaling')
+        response = self._http_client.get(
+            JOB_DEPLOYMENTS_ENDPOINT + '/{job_name}/scaling', path_params={'job_name': job_name}
+        )
         return JobScalingOptions.from_dict(response.json())
 
     def pause(self, job_name: str) -> None:
         """Pause a job deployment."""
-        self._http_client.post(f'{JOB_DEPLOYMENTS_ENDPOINT}/{job_name}/pause')
+        self._http_client.post(
+            JOB_DEPLOYMENTS_ENDPOINT + '/{job_name}/pause', path_params={'job_name': job_name}
+        )
 
     def resume(self, job_name: str) -> None:
         """Resume a job deployment."""
-        self._http_client.post(f'{JOB_DEPLOYMENTS_ENDPOINT}/{job_name}/resume')
+        self._http_client.post(
+            JOB_DEPLOYMENTS_ENDPOINT + '/{job_name}/resume', path_params={'job_name': job_name}
+        )
 
     def purge_queue(self, job_name: str) -> None:
         """Purge the job deployment queue."""
-        self._http_client.post(f'{JOB_DEPLOYMENTS_ENDPOINT}/{job_name}/purge-queue')
+        self._http_client.post(
+            JOB_DEPLOYMENTS_ENDPOINT + '/{job_name}/purge-queue', path_params={'job_name': job_name}
+        )

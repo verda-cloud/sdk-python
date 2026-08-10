@@ -22,6 +22,8 @@ import requests
 from dataclasses_json import Undefined, dataclass_json  # type: ignore
 from requests.structures import CaseInsensitiveDict
 
+from verda.helpers import has_relative_path_segment
+
 
 class InferenceClientError(Exception):
     """Base exception for InferenceClient errors."""
@@ -139,6 +141,21 @@ class InferenceClient:
         parsed_url = urlparse(endpoint_base_url)
         if not parsed_url.scheme or not parsed_url.netloc:
             raise InferenceClientError('endpoint_base_url must be a valid URL')
+        # base_domain and deployment_name are sliced out of this url and interpolated
+        # into the async status/result urls, so the whole path must be free of
+        # segments a parser would resolve away.
+        if has_relative_path_segment(parsed_url.path):
+            raise InferenceClientError(
+                f'endpoint_base_url must not contain a relative path segment, '
+                f'got {endpoint_base_url!r}'
+            )
+        # The slicing is `rindex('/')`, which without a path finds the '//' of the
+        # scheme: 'https://host' yields base_domain 'https:/', making the async status
+        # url 'https://status/host' -- a different host, still carrying the key.
+        if not parsed_url.path.strip('/'):
+            raise InferenceClientError(
+                f'endpoint_base_url must include the deployment path, got {endpoint_base_url!r}'
+            )
 
         self.inference_key = inference_key
         self.endpoint_base_url = endpoint_base_url.rstrip('/')
@@ -193,8 +210,29 @@ class InferenceClient:
             del self._global_headers[key]
 
     def _build_url(self, path: str) -> str:
-        """Construct the full URL by joining the base URL with the path."""
-        return f'{self.endpoint_base_url}/{path.lstrip("/")}'
+        """Construct the full URL by joining the base URL with the path.
+
+        ``path`` may span several segments, so it is not checked as one. It must still
+        stay under the deployment's base url: ``endpoint_base_url`` ends with this
+        deployment's name, so a relative segment would walk the request onto a
+        different deployment while still carrying the caller's inference key.
+
+        Args:
+            path: API path relative to the deployment's endpoint.
+
+        Returns:
+            The full request URL.
+
+        Raises:
+            InferenceClientError: If the path contains a relative path segment.
+        """
+        relative = path.lstrip('/')
+        if has_relative_path_segment(relative):
+            raise InferenceClientError(
+                f'path must not contain a relative path segment, got {path!r}'
+            )
+
+        return f'{self.endpoint_base_url}/{relative}'
 
     def _build_request_headers(
         self, request_headers: dict[str, str] | None = None

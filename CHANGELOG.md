@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Fixed a path traversal issue where a resource name or id containing `../` was resolved while the request was prepared, retargeting the call at a different API endpoint under the SDK's own credentials (for example `containers.delete_deployment('../../v1/instances')` issued `DELETE /v1/instances`). This also prevents a name from injecting query parameters, such as overriding the `force` flag of `containers.delete_secret`.
+
+  Caller-supplied path values are no longer interpolated into the request path. `HTTPClient.get/post/put/patch/delete` now accept a keyword-only `path_params` mapping whose values are validated as a single path segment before substitution, and all service modules pass names and ids that way. This covers `instances.is_available()` and `clusters.is_available()`, where the affected value was the `instance_type`/`cluster_type`. As a backstop, `HTTPClient` refuses to send a request whose path would escape the API base path.
+
+  `InferenceClient` paths are validated too: `path` may still span several segments, but it can no longer walk out of the deployment's base url.
+
 ### Added
 
 - `LongTermService` with `get_cluster_periods()` and `get_instance_periods()` methods
@@ -16,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** a resource name or id used in a request path must now match `[A-Za-z0-9._~-]+` (the RFC 3986 unreserved set). Anything else raises `ValueError` instead of being percent-encoded and sent — including `/`, `\`, `%`, spaces, `?`, `#` and non-ASCII characters. Every name the API takes in a path position is a slug, an id or a machine type (`my-deployment`, `1A100.22V`, a UUID), so ordinary calls are unaffected. If you have a name that was already URL-encoded, pass the raw name: `get_deployment_by_name('my%20deployment')` now raises rather than looking up a deployment literally named `my%20deployment`.
+- **Breaking:** a relative path segment (`.` or `..`), an empty value, or `None` raises `ValueError`. Encoding is not sufficient for these: `%2E` is decoded back to `.` before the request is sent.
+- **Breaking:** a path value that is not a `str`, `int` or `UUID` now raises `ValueError` rather than being coerced with `str()` into a nonsense path segment.
+- **Breaking:** `InferenceClient` now requires `endpoint_base_url` to include the deployment path. `InferenceClient(key, 'https://containers.example.com')` previously produced a `base_domain` of `https:/`, sending async status and result requests to a host named `status`/`result` while still carrying the inference key.
 - Refactored `Image` model to use `@dataclass` and `@dataclass_json` for consistency with `Instance` and `Volume`
 - License changed from MIT to Apache 2.0
 

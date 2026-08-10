@@ -71,6 +71,44 @@ verda/<service>/
 - `__init__.py` files do NOT have the Apache 2.0 license header. All other `.py` files do.
 - Implementation files are prefixed with `_` (e.g., `_instances.py`, `_volumes.py`).
 
+## Making API requests
+
+Service modules call the shared `HTTPClient` (`verda/http_client/`), which exposes `get`, `post`, `put`, `patch`, and `delete`.
+
+**Never interpolate a caller-supplied value into the request path.** Resource names and IDs arrive from application input. A value containing `../` is resolved while the request is prepared and retargets the call at a different API endpoint under the SDK's own credentials; a value containing `?` injects query parameters.
+
+Pass such values as `path_params`. The client validates each one as exactly one path segment before substituting it:
+
+```python
+# correct
+response = self.client.get(
+    CONTAINER_DEPLOYMENTS_ENDPOINT + '/{deployment_name}/status',
+    path_params={'deployment_name': deployment_name},
+)
+
+# wrong -- the name can escape its path segment
+response = self.client.get(f'{CONTAINER_DEPLOYMENTS_ENDPOINT}/{deployment_name}/status')
+```
+
+- The url is a template: a trusted endpoint constant concatenated with a literal containing `{name}` placeholders. Keep it a plain string, never an f-string, so a value cannot be interpolated by accident.
+- Name each placeholder after the parameter it carries (`{deployment_name}`, `{id}`, `{job_name}`).
+- `path_params` goes last in the call, after any positional `json` body or `params` query dict.
+- Paths with no caller input need no `path_params` (e.g. `self.client.get(INSTANCES_ENDPOINT)`).
+
+Endpoint paths belong in a module-level `<NAME>_ENDPOINT` constant, never an inline string literal — a literal hides the call site from the greps and audits used to check this rule.
+
+A path value must match `[A-Za-z0-9._~-]+` (the RFC 3986 unreserved set). Anything else raises `ValueError`, as do `.`, `..`, empty/`None`, a non-`str`/`int`/`UUID` type, and any template/`path_params` mismatch. `int` and `UUID` are coerced with `str()`.
+
+Reject, do not encode: `requests` decodes `%2E` back to `.` before sending, and an intermediary that unescapes `%2F` before normalising the path restores a traversal. Do not encode a rejected name at the call site — pass the raw name.
+
+`tests/unit_tests/test_path_traversal.py` enforces its own completeness: it reads the source for methods passing `path_params` and fails if any is absent from its `_call_sites` table.
+
+All five verbs delegate to a single private `_request`, which is where the url is built and validated. Add new verbs by delegating to it, never by calling `requests` directly.
+
+The check is `_encode_path_segment` in `verda/http_client/_http_client.py`; `path_params` is the only supported way to put a caller-supplied value into a path. `_add_base_url` re-asserts the same allowlist on the finished path, as a backstop for a call site that skips `path_params`.
+
+`verda.helpers.has_relative_path_segment` strips the query string and decodes escapes and encoded separators. It is for `InferenceClient` only, whose `path` spans several segments and may carry a query string. Do not use it in the http client, and do not re-implement it.
+
 ## Code style
 
 ### Formatting and linting
@@ -143,6 +181,7 @@ Ensure two blank lines between the header and the first top-level `class`/`def` 
 - **API error tests:** use `pytest.raises(APIException)` and verify `.code` and `.message`
 - **Request matching:** use `responses.add()` with `matchers.json_params_matcher()` to verify request payloads
 - **Test data:** define constants and mock payloads as module-level variables at top of test file
+- **Path traversal regression:** `tests/unit_tests/test_path_traversal.py` drives every method that takes a resource name or id against hostile values. When adding such a method, add it to the `_call_sites` table there.
 
 ## Git and branching
 

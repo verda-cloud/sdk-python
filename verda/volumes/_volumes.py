@@ -108,7 +108,9 @@ class VolumesService:
         :return: Volume details object
         :rtype: Volume
         """
-        volume_dict = self._http_client.get(VOLUMES_ENDPOINT + f'/{id}').json()
+        volume_dict = self._http_client.get(
+            VOLUMES_ENDPOINT + '/{id}', path_params={'id': id}
+        ).json()
 
         return Volume.from_dict(volume_dict)
 
@@ -257,7 +259,9 @@ class VolumesService:
         :type is_permanent: bool, optional
         """
         payload = {'is_permanent': is_permanent}
-        self._http_client.delete(VOLUMES_ENDPOINT + f'/{volume_id}', json=payload)
+        self._http_client.delete(
+            VOLUMES_ENDPOINT + '/{volume_id}', json=payload, path_params={'volume_id': volume_id}
+        )
         return
 
     def delete(self, id_list: list[str] | str, is_permanent: bool = False) -> None:
