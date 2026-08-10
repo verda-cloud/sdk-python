@@ -399,11 +399,6 @@ class HTTPClient:
         except KeyError as error:
             raise ValueError(f'no value given for placeholder {error} in url {url!r}') from error
 
-        # A checked value cannot contain a separator, so substitution must not change
-        # the shape of the route.
-        if path.count('/') != url.count('/'):
-            raise ValueError(f'path parameter added a path segment to {url!r}')
-
         return path
 
     def _add_base_url(self, url: str) -> str:

@@ -190,18 +190,6 @@ class TestBuildPath:
         with pytest.raises(ValueError, match='path segment must be'):
             http_client._build_path('/instances/{id}', {'id': value})
 
-    def test_segment_count_guard_catches_an_encoder_that_leaks_a_separator(
-        self, http_client, monkeypatch
-    ):
-        # The guard is unreachable while the encoder is correct, so drive it with a
-        # deliberately broken encoder. This tests the guard itself rather than
-        # re-testing urllib's quote().
-        monkeypatch.setattr(
-            'verda.http_client._http_client._encode_path_segment', lambda value: value
-        )
-        with pytest.raises(ValueError, match='added a path segment'):
-            http_client._build_path('/container-deployments/{name}/status', {'name': 'a/b'})
-
 
 class TestHttpClient:
     def test_add_base_url(self, http_client):
