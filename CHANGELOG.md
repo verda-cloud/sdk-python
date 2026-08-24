@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the inference authorization documentation link in the README
+
 ## [1.24.1] - 2026-08-12
 
 ### Security
