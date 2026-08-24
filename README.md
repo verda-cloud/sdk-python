@@ -40,7 +40,7 @@ This package was originally published under `datacrunch` name, see [MIGRATION.md
   export VERDA_CLIENT_SECRET=YOUR_SECRET_HERE
   ```
 
-- To enable sending inference requests from SDK you must generate an inference key - [Instructions on inference authorization](https://docs.verda.com/inference/authorization)
+- To enable sending inference requests from SDK you must generate an inference key - [Instructions on inference authorization](https://docs.verda.com/welcome-to-verda/api-credentials/)
 
 - Add your inference key to an environment variable
 
