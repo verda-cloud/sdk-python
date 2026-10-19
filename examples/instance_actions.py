@@ -58,14 +58,3 @@ try:
     verda.instances.action(instance.id, Actions.SHUTDOWN)
 except APIException as exception:
     print(exception)  # no exception this time
-
-# Wait until instance is offline (check every 30sec), only then hibernate
-while instance.status != InstanceStatus.OFFLINE:
-    time.sleep(30)
-    instance = verda.instances.get_by_id(instance.id)
-
-# Hibernate the instance
-try:
-    verda.instances.action(instance.id, Actions.HIBERNATE)
-except APIException as exception:
-    print(exception)

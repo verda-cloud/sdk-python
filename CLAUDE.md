@@ -33,7 +33,7 @@ verda/                  # main SDK source
   helpers.py            # utility functions
   http_client/          # HTTP wrapper with auth token refresh
   authentication/       # OAuth2 token management
-  instances/            # instance lifecycle (create, delete, hibernate, etc.)
+  instances/            # instance lifecycle (create, delete, etc.)
   volumes/              # storage volume management
   containers/           # serverless container deployments
   job_deployments/      # serverless batch jobs

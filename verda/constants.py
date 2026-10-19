@@ -23,7 +23,6 @@ class Actions:
     START = 'start'
     SHUTDOWN = 'shutdown'
     DELETE = 'delete'
-    HIBERNATE = 'hibernate'
     RESTORE = 'restore'
 
     def __init__(self):
@@ -51,8 +50,6 @@ class InstanceStatus:
     RUNNING = 'running'
     PROVISIONING = 'provisioning'
     OFFLINE = 'offline'
-    STARTING_HIBERNATION = 'starting_hibernation'
-    HIBERNATING = 'hibernating'
     RESTORING = 'restoring'
     ERROR = 'error'
 
