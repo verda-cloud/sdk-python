@@ -258,7 +258,6 @@ class InstancesService:
 
         Hibernate is deprecated. It discontinues the instance and retains its volumes.
         It does not save runtime state or support resuming the instance.
-        Use ``action(id_list, Actions.DELETE, volume_ids=[])`` instead.
         Retained volumes remain billable.
 
         Args:
@@ -274,8 +273,8 @@ class InstancesService:
         """
         if action == Actions.HIBERNATE:
             warnings.warn(
-                'Hibernate is deprecated. Use action(id_list, Actions.DELETE, volume_ids=[]) '
-                'to delete the instance and retain its volumes. Retained volumes remain billable.',
+                'Hibernate is deprecated. It discontinues the instance and retains its volumes. '
+                'Retained volumes remain billable.',
                 DeprecationWarning,
                 stacklevel=2,
             )

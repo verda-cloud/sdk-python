@@ -24,7 +24,7 @@ class Actions:
     SHUTDOWN = 'shutdown'
     DELETE = 'delete'
     HIBERNATE = 'hibernate'
-    """Deprecated. Use DELETE with volume_ids=[] to retain volumes."""
+    """Deprecated. Retained for compatibility."""
     RESTORE = 'restore'
 
     def __init__(self):

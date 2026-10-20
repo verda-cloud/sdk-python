@@ -66,7 +66,6 @@ while instance.status != InstanceStatus.OFFLINE:
 
 # Deprecated: Hibernate discontinues the instance and retains its volumes.
 # It does not save runtime state or support resuming the instance.
-# Use verda.instances.action(instance.id, Actions.DELETE, volume_ids=[]) instead.
 # Retained volumes remain billable.
 try:
     verda.instances.action(instance.id, Actions.HIBERNATE)
