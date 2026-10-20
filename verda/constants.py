@@ -24,6 +24,7 @@ class Actions:
     SHUTDOWN = 'shutdown'
     DELETE = 'delete'
     HIBERNATE = 'hibernate'
+    """Deprecated. Use DELETE with volume_ids=[] to retain volumes."""
     RESTORE = 'restore'
 
     def __init__(self):
@@ -52,7 +53,9 @@ class InstanceStatus:
     PROVISIONING = 'provisioning'
     OFFLINE = 'offline'
     STARTING_HIBERNATION = 'starting_hibernation'
+    """Deprecated. Retained for compatibility."""
     HIBERNATING = 'hibernating'
+    """Deprecated. Retained for compatibility."""
     RESTORING = 'restoring'
     ERROR = 'error'
 
