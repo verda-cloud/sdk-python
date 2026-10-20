@@ -256,7 +256,8 @@ class InstancesService:
     ) -> None:
         """Performs an action on one or more instances.
 
-        Hibernate is deprecated. It discontinues the instance and retains its volumes.
+        Hibernate is deprecated and will be removed in a future version.
+        It discontinues the instance and retains its volumes.
         It does not save runtime state or support resuming the instance.
         Retained volumes remain billable.
 
@@ -273,7 +274,8 @@ class InstancesService:
         """
         if action == Actions.HIBERNATE:
             warnings.warn(
-                'Hibernate is deprecated. It discontinues the instance and retains its volumes. '
+                'Hibernate is deprecated and will be removed in a future version. '
+                'It discontinues the instance and retains its volumes. '
                 'Retained volumes remain billable.',
                 DeprecationWarning,
                 stacklevel=2,

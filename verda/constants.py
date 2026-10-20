@@ -24,7 +24,10 @@ class Actions:
     SHUTDOWN = 'shutdown'
     DELETE = 'delete'
     HIBERNATE = 'hibernate'
-    """Deprecated. Retained for compatibility."""
+    """Hibernate is deprecated and will be removed in a future version.
+
+    Retained for compatibility.
+    """
     RESTORE = 'restore'
 
     def __init__(self):
@@ -53,9 +56,15 @@ class InstanceStatus:
     PROVISIONING = 'provisioning'
     OFFLINE = 'offline'
     STARTING_HIBERNATION = 'starting_hibernation'
-    """Deprecated. Retained for compatibility."""
+    """Hibernate is deprecated and will be removed in a future version.
+
+    Retained for compatibility.
+    """
     HIBERNATING = 'hibernating'
-    """Deprecated. Retained for compatibility."""
+    """Hibernate is deprecated and will be removed in a future version.
+
+    Retained for compatibility.
+    """
     RESTORING = 'restoring'
     ERROR = 'error'
 

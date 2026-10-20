@@ -52,7 +52,8 @@ Instance Actions
         time.sleep(30)
         instance = verda.instances.get_by_id(instance.id)
 
-    # Deprecated: Hibernate discontinues the instance and retains its volumes.
+    # Hibernate is deprecated and will be removed in a future version.
+    # It discontinues the instance and retains its volumes.
     # It does not save runtime state or support resuming the instance.
     # Retained volumes remain billable.
     try:
