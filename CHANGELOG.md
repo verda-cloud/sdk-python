@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deprecated
+
+- Hibernate is deprecated and will be removed in a future version.
+  `instances.action(..., Actions.HIBERNATE)` now emits `DeprecationWarning`.
+  Hibernate discontinues compute and retains the instance volumes. Retained volumes remain billable.
+  Request payloads remain unchanged. Callers that treat warnings as errors can stop before the HTTP request.
+
 ### Changed
 
 - Updated the inference authorization documentation link in the README

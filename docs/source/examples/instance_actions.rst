@@ -47,13 +47,7 @@ Instance Actions
     except APIException as exception:
         print(exception)  # no exception this time
 
-    # Wait until instance is offline (check every 30sec), only then hibernate
-    while(instance.status != verda.instance_status.OFFLINE):
-        time.sleep(30)
-        instance = verda.instances.get_by_id(instance.id)
-
-    # Hibernate the instance
-    try:
-        verda.instances.action(instance.id, verda.actions.HIBERNATE)
-    except APIException as exception:
-        print(exception)
+    # Hibernate is deprecated and will be removed in a future version.
+    # It discontinues the instance and retains its volumes.
+    # It does not save runtime state or support resuming the instance.
+    # Retained volumes remain billable.

@@ -14,13 +14,14 @@
 
 import itertools
 import time
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
 from dataclasses_json import Undefined, dataclass_json
 
-from verda.constants import InstanceStatus, Locations
+from verda.constants import Actions, InstanceStatus, Locations
 
 INSTANCES_ENDPOINT = '/instances'
 INSTANCE_AVAILABILITY_ENDPOINT = '/instance-availability'
@@ -255,6 +256,11 @@ class InstancesService:
     ) -> None:
         """Performs an action on one or more instances.
 
+        Hibernate is deprecated and will be removed in a future version.
+        It discontinues the instance and retains its volumes.
+        It does not save runtime state or support resuming the instance.
+        Retained volumes remain billable.
+
         Args:
             id_list: Single instance ID or list of instance IDs to act upon.
             action: Action to perform on the instances.
@@ -266,6 +272,15 @@ class InstancesService:
         Raises:
             HTTPError: If the action fails or other API error occurs.
         """
+        if action == Actions.HIBERNATE:
+            warnings.warn(
+                'Hibernate is deprecated and will be removed in a future version. '
+                'It discontinues the instance and retains its volumes. '
+                'Retained volumes remain billable.',
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         if type(id_list) is str:
             id_list = [id_list]
 

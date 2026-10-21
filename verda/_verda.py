@@ -78,7 +78,10 @@ class VerdaClient:
         """Instance type service"""
 
         self.instances: InstancesService = InstancesService(self._http_client)
-        """Instances service. Deploy, delete, hibernate (etc) instances"""
+        """Instances service. Deploy, delete, hibernate, etc.
+
+        Hibernate is deprecated and will be removed in a future version.
+        """
 
         self.ssh_keys: SSHKeysService = SSHKeysService(self._http_client)
         """SSH keys service"""
