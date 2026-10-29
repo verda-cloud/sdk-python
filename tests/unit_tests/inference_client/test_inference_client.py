@@ -26,6 +26,8 @@ from verda.inference_client import (
 
 BASE_URL = 'https://inference.example.com/v1/my-deployment'
 
+VERBS = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options']
+
 
 @pytest.fixture
 def inference_client():
@@ -44,6 +46,10 @@ class TestBuildUrl:
             # multi-segment paths are the documented contract and must keep working
             ('v1/models/predict', f'{BASE_URL}/v1/models/predict'),
             ('/v1/models/predict', f'{BASE_URL}/v1/models/predict'),
+            ('v1/chat/completions', f'{BASE_URL}/v1/chat/completions'),
+            ('v1/models/', f'{BASE_URL}/v1/models/'),
+            # TensorFlow Serving names the method after a ':'
+            ('v1/models/my_model:predict', f'{BASE_URL}/v1/models/my_model:predict'),
         ],
     )
     def test_ordinary_paths_are_joined_unchanged(self, inference_client, path, expected):
@@ -57,29 +63,154 @@ class TestBuildUrl:
             'a/../../b',
             './x',
             '..',
-            # requests decodes percent-encoded unreserved characters before sending,
-            # so these reach the wire as real dot-segments.
-            '%2e%2e/%2e%2e/v1/victim',
-            '%2E%2E/other-deployment',
         ],
     )
     def test_paths_that_escape_the_deployment_are_rejected(self, inference_client, path):
         # endpoint_base_url ends with this deployment's name, so a dot-segment walks
         # the request onto a different deployment while still carrying the caller's
         # inference key.
-        with pytest.raises(InferenceClientError, match='relative path segment'):
+        with pytest.raises(InferenceClientError, match='escape the API base path'):
             inference_client._build_url(path)
 
     @pytest.mark.parametrize(
         'path',
-        ['predict?filter=a/../b', 'predict#a/../b', 'predict?q=..'],
+        ['chat?x=1', 'v1#frag', 'predict?filter=a/../b', 'predict?q=..'],
     )
-    def test_dot_segments_inside_a_query_string_are_not_path_traversal(
+    def test_a_query_string_or_fragment_in_the_path_is_rejected(self, inference_client, path):
+        # Query data is passed as `params`, so a '?' or '#' here can only come from a
+        # value interpolated into the path, injecting parameters into a request that
+        # carries the inference key.
+        with pytest.raises(InferenceClientError, match='query string or fragment'):
+            inference_client._build_url(path)
+
+    @pytest.mark.parametrize(
+        'path',
+        [
+            # requests decodes percent-encoded unreserved characters before sending,
+            # so these reach the wire as real dot-segments.
+            '%2e%2e/x',
+            '%2e%2e/%2e%2e/v1/victim',
+            '%2E%2E/other-deployment',
+            # a decoding check misses these, but a normalising proxy may not
+            '..%252fx',
+            '..%2Fx',
+            '..;/x',
+            'a\\b',
+            'a;b',
+            'v1/my model',
+        ],
+    )
+    def test_an_escape_or_a_character_outside_the_allowlist_is_rejected(
         self, inference_client, path
     ):
-        # Only the path is resolved by a URL parser; a value inside the query string
-        # is not, so rejecting it would break callers passing an inline query.
-        assert inference_client._build_url(path) == f'{BASE_URL}/{path}'
+        with pytest.raises(InferenceClientError, match='unencoded value'):
+            inference_client._build_url(path)
+
+
+class TestRequestPaths:
+    @pytest.mark.parametrize('verb', VERBS)
+    @responses.activate
+    def test_params_are_sent_as_the_query_string(self, inference_client, verb):
+        # arrange
+        responses.add(
+            verb.upper(),
+            f'{BASE_URL}/v1/models',
+            match=[matchers.query_param_matcher({'filter': 'a/../b'})],
+        )
+
+        # act
+        response = getattr(inference_client, verb)('v1/models', params={'filter': 'a/../b'})
+
+        # assert
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize('verb', VERBS)
+    @responses.activate
+    def test_a_rejected_path_sends_no_request(self, inference_client, verb):
+        with pytest.raises(InferenceClientError, match='query string or fragment'):
+            getattr(inference_client, verb)('chat?x=1')
+
+        assert len(responses.calls) == 0
+
+    @responses.activate
+    def test_run_sync_posts_to_the_path(self, inference_client):
+        # arrange
+        responses.add(responses.POST, f'{BASE_URL}/v1/chat/completions', json={'ok': True})
+
+        # act
+        response = inference_client.run_sync({'prompt': 'hi'}, path='v1/chat/completions')
+
+        # assert
+        assert response.status_code == 200
+
+    @responses.activate
+    def test_run_posts_to_the_path(self, inference_client):
+        # arrange
+        responses.add(responses.POST, f'{BASE_URL}/v1/chat/completions', json={'Id': 'abc'})
+
+        # act
+        execution = inference_client.run({'prompt': 'hi'}, path='v1/chat/completions')
+
+        # assert
+        assert execution.id == 'abc'
+
+    @responses.activate
+    def test_run_sync_sends_params_as_the_query_string(self, inference_client):
+        # arrange
+        responses.add(
+            responses.POST,
+            f'{BASE_URL}/v1/completions',
+            json={'ok': True},
+            match=[matchers.query_param_matcher({'stream': 'true'})],
+        )
+
+        # act
+        response = inference_client.run_sync(
+            {'prompt': 'hi'}, path='v1/completions', params={'stream': 'true'}
+        )
+
+        # assert
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize('no_response', [False, True])
+    @responses.activate
+    def test_run_sends_params_as_the_query_string(self, inference_client, no_response):
+        # arrange
+        responses.add(
+            responses.POST,
+            f'{BASE_URL}/v1/completions',
+            json={'Id': 'abc'},
+            match=[matchers.query_param_matcher({'stream': 'true'})],
+        )
+
+        # act
+        inference_client.run(
+            {'prompt': 'hi'},
+            path='v1/completions',
+            no_response=no_response,
+            params={'stream': 'true'},
+        )
+
+        # assert
+        assert len(responses.calls) == 1
+
+    @responses.activate
+    def test_health_gets_the_health_path(self, inference_client):
+        # arrange
+        responses.add(responses.GET, f'{BASE_URL}/health')
+
+        # act
+        response = inference_client.health()
+
+        # assert
+        assert response.status_code == 200
+
+    @responses.activate
+    def test_run_sync_rejects_a_query_string_in_the_path(self, inference_client):
+        with pytest.raises(InferenceClientError, match='query string or fragment'):
+            inference_client.run_sync({'prompt': 'hi'}, path='v1/completions?stream=true')
+
+        assert len(responses.calls) == 0
 
 
 class TestEndpointBaseUrl:

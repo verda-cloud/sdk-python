@@ -7,19 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- `InferenceClient` has a new `follow_redirects` argument. It is off by default. When it is on, the client follows a redirect only if the target is inside the deployment: same scheme, host and port, and a path under `endpoint_base_url`. The client follows at most 5 redirects. Any other redirect raises `InferenceClientError`. `AsyncInferenceExecution.status_json()` and `result()` never follow a redirect.
-- When a redirect only adds or removes a trailing slash, the `InferenceClientError` message tells you to change `path`.
-
 ### Security
 
 - `InferenceClient`, `HTTPClient` and the authentication token requests no longer follow HTTP redirects. A 3xx response now raises `InferenceClientError` or `APIException`. The error message includes the `Location` value.
+- `InferenceClient` now checks the request `path` with the same rules as the main API client. A path built from untrusted input could inject query parameters or a fragment into a request that carries the inference key, and dot-segment forms such as `..;/` and `..%252f` passed the old check. `path` may now contain only letters, digits, `-._~`, `/` and `:`, and must not contain a `.` or `..` segment. Anything else raises `InferenceClientError` before the request is sent.
+
+### Added
+
+- `InferenceClient` has a new `follow_redirects` argument. It is off by default. When it is on, the client follows a redirect only if the target is inside the deployment: same scheme, host and port, and a path under `endpoint_base_url` that passes the same rules as `path`. The client follows at most 5 redirects. Any other redirect raises `InferenceClientError`. `AsyncInferenceExecution.status_json()` and `result()` never follow a redirect.
+- When a redirect only adds or removes a trailing slash, the `InferenceClientError` message tells you to change `path`.
+- `InferenceClient.run_sync`, `InferenceClient.run`, `Deployment.run_sync` and `Deployment.run` accept a `params` argument for query string parameters, like the other `InferenceClient` methods.
 
 ### Changed
 
 - `AsyncInferenceExecution.status_json()` and `result()` now use the client `timeout_seconds` and raise `InferenceClientError` on an HTTP error status.
 - `HTTPClient` methods ignore the `allow_redirects` keyword argument.
+- **Breaking:** `InferenceClient` no longer accepts a query string or fragment in `path`. Pass query data as `params` instead. For example, replace `client.get('v1/models?limit=10')` with `client.get('v1/models', params={'limit': 10})`, and `client.run_sync(data, path='v1/completions?stream=true')` with `client.run_sync(data, path='v1/completions', params={'stream': 'true'})`.
+- **Breaking:** `InferenceClient` now accepts only letters, digits, `-._~`, `/` and `:` in `path`. A path with a percent-encoded value (such as `%20` or `%2F`), a space, a non-ASCII character or another character such as `@`, `+`, `,`, `=` or `;` raises `InferenceClientError`. Send such values in the request body or in `params`.
 
 ## [1.25.0] - 2026-10-23
 

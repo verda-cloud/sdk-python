@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from collections.abc import Generator
 from dataclasses import dataclass
 from enum import Enum
@@ -22,7 +23,11 @@ import requests
 from dataclasses_json import Undefined, dataclass_json  # type: ignore
 from requests.structures import CaseInsensitiveDict
 
-from verda.helpers import has_relative_path_segment
+from verda.helpers import check_request_path, has_relative_path_segment
+
+# The unreserved set plus '/', as for the API, and ':', which some inference servers
+# use to name a method on a resource (TensorFlow Serving's 'v1/models/my_model:predict').
+_ALLOWED_IN_INFERENCE_PATH = re.compile(r'^[A-Za-z0-9._~/:-]*$')
 
 
 class InferenceClientError(Exception):
@@ -332,7 +337,8 @@ class InferenceClient:
         ``path`` may span several segments, so it is not checked as one. It must still
         stay under the deployment's base url: ``endpoint_base_url`` ends with this
         deployment's name, so a relative segment would walk the request onto a
-        different deployment while still carrying the caller's inference key.
+        different deployment while still carrying the caller's inference key. Query
+        data is passed separately as ``params``.
 
         Args:
             path: API path relative to the deployment's endpoint.
@@ -341,13 +347,15 @@ class InferenceClient:
             The full request URL.
 
         Raises:
-            InferenceClientError: If the path contains a relative path segment.
+            InferenceClientError: If the path contains a query string or fragment, a
+                character outside the unreserved set, '/' and ':', or a relative path
+                segment.
         """
         relative = path.lstrip('/')
-        if has_relative_path_segment(relative):
-            raise InferenceClientError(
-                f'path must not contain a relative path segment, got {path!r}'
-            )
+        try:
+            check_request_path(relative, _ALLOWED_IN_INFERENCE_PATH)
+        except ValueError as e:
+            raise InferenceClientError(str(e)) from e
 
         return f'{self.endpoint_base_url}/{relative}'
 
@@ -464,6 +472,7 @@ class InferenceClient:
         headers: dict[str, str] | None = None,
         http_method: str = 'POST',
         stream: bool = False,
+        params: dict[str, Any] | None = None,
     ):
         """Make a synchronous request to the inference endpoint.
 
@@ -474,6 +483,7 @@ class InferenceClient:
             headers: Optional headers to include in the request
             http_method: HTTP method to use. Defaults to "POST".
             stream: Whether to stream the response. Defaults to False.
+            params: Optional query string parameters
 
         Returns:
             InferenceResponse: Object containing the response data.
@@ -485,6 +495,7 @@ class InferenceClient:
             http_method,
             path,
             json=data,
+            params=params,
             timeout_seconds=timeout_seconds,
             headers=headers,
             stream=stream,
@@ -505,6 +516,7 @@ class InferenceClient:
         headers: dict[str, str] | None = None,
         http_method: str = 'POST',
         no_response: bool = False,
+        params: dict[str, Any] | None = None,
     ):
         """Make an asynchronous request to the inference endpoint.
 
@@ -515,6 +527,7 @@ class InferenceClient:
             headers: Optional headers to include in the request
             http_method: HTTP method to use. Defaults to "POST".
             no_response: If True, don't wait for response. Defaults to False.
+            params: Optional query string parameters
 
         Returns:
             AsyncInferenceExecution: Object to track the async execution status.
@@ -532,6 +545,7 @@ class InferenceClient:
                 http_method,
                 path,
                 json=data,
+                params=params,
                 timeout_seconds=timeout_seconds,
                 headers=headers,
             )
@@ -543,6 +557,7 @@ class InferenceClient:
             http_method,
             path,
             json=data,
+            params=params,
             timeout_seconds=timeout_seconds,
             headers=headers,
         )

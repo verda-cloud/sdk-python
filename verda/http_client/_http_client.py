@@ -21,7 +21,7 @@ import requests
 
 from verda._version import __version__
 from verda.exceptions import APIException
-from verda.helpers import _RELATIVE_SEGMENTS
+from verda.helpers import _RELATIVE_SEGMENTS, check_request_path
 
 # A `{name}` placeholder in a relative url template.
 _PLACEHOLDER = re.compile(r'\{(\w+)\}')
@@ -29,9 +29,6 @@ _PLACEHOLDER = re.compile(r'\{(\w+)\}')
 # Anything outside the RFC 3986 unreserved set. Every value the API takes in a path
 # position is a slug, an id or a machine type: 'my-deployment', '1A100.22V', a UUID.
 _UNSAFE_IN_SEGMENT = re.compile(r'[^A-Za-z0-9._~-]')
-
-# The unreserved set plus the '/' between the segments of an endpoint constant.
-_ALLOWED_IN_PATH = re.compile(r'^[A-Za-z0-9._~/-]*$')
 
 
 def _encode_path_segment(value: object) -> str:
@@ -444,22 +441,10 @@ class HTTPClient:
         Raises:
             ValueError: If the path could escape the API base path.
         """
-        # Query data is passed separately as `params`.
-        if '?' in url or '#' in url:
-            raise ValueError(f'request path must not contain a query string or fragment: {url!r}')
-
-        # Catches '%', which requests may decode into a separator or a dot, and '\',
-        # which some servers normalise to '/'.
-        if not _ALLOWED_IN_PATH.match(url):
-            raise ValueError(f'request path must not contain an unencoded value: {url!r}')
+        check_request_path(url)
 
         # An empty segment collapses a delete-one call onto the collection endpoint.
         if any(segment == '' for segment in url.split('/')[1:]):
             raise ValueError(f'request path must not contain an empty path segment: {url!r}')
-
-        if _RELATIVE_SEGMENTS.intersection(url.split('/')):
-            raise ValueError(
-                f'refusing to send a request whose path would escape the API base path: {url!r}'
-            )
 
         return self._base_url + url
