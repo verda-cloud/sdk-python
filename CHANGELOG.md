@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `InferenceClient` now checks the request `path` with the same rules as the main API client. A path built from untrusted input could inject query parameters or a fragment into a request that carries the inference key, and dot-segment forms such as `..;/` and `..%252f` passed the old check. `path` may now contain only letters, digits, `-._~`, `/` and `:`, and must not contain a `.` or `..` segment. Anything else raises `InferenceClientError` before the request is sent.
+
+### Added
+
+- `InferenceClient.run_sync`, `InferenceClient.run`, `Deployment.run_sync` and `Deployment.run` accept a `params` argument for query string parameters, like the other `InferenceClient` methods.
+
+### Changed
+
+- **Breaking:** `InferenceClient` no longer accepts a query string or fragment in `path`. Pass query data as `params` instead. For example, replace `client.get('v1/models?limit=10')` with `client.get('v1/models', params={'limit': 10})`, and `client.run_sync(data, path='v1/completions?stream=true')` with `client.run_sync(data, path='v1/completions', params={'stream': 'true'})`.
+- **Breaking:** `InferenceClient` now accepts only letters, digits, `-._~`, `/` and `:` in `path`. A path with a percent-encoded value (such as `%20` or `%2F`), a space, a non-ASCII character or another character such as `@`, `+`, `,`, `=` or `;` raises `InferenceClientError`. Send such values in the request body or in `params`.
+
 ## [1.25.0] - 2026-10-23
 
 ### Deprecated

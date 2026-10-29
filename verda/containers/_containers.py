@@ -491,6 +491,7 @@ class Deployment:
         headers: dict[str, str] | None = None,
         http_method: str = 'POST',
         stream: bool = False,
+        params: dict[str, Any] | None = None,
     ) -> InferenceResponse:
         """Runs a synchronous inference request.
 
@@ -501,6 +502,7 @@ class Deployment:
             headers: Optional headers to include in the request.
             http_method: The HTTP method to use for the request.
             stream: Whether to stream the response.
+            params: Optional query string parameters.
 
         Returns:
             InferenceResponse: The response from the inference request.
@@ -510,7 +512,7 @@ class Deployment:
         """
         self._validate_inference_client()
         return self._inference_client.run_sync(
-            data, path, timeout_seconds, headers, http_method, stream
+            data, path, timeout_seconds, headers, http_method, stream, params=params
         )
 
     def run(
@@ -521,6 +523,7 @@ class Deployment:
         headers: dict[str, str] | None = None,
         http_method: str = 'POST',
         stream: bool = False,
+        params: dict[str, Any] | None = None,
     ):
         """Runs an asynchronous inference request.
 
@@ -531,6 +534,7 @@ class Deployment:
             headers: Optional headers to include in the request.
             http_method: The HTTP method to use for the request.
             stream: Whether to stream the response.
+            params: Optional query string parameters.
 
         Returns:
             The response from the inference request.
@@ -539,7 +543,9 @@ class Deployment:
             ValueError: If the inference client is not initialized.
         """
         self._validate_inference_client()
-        return self._inference_client.run(data, path, timeout_seconds, headers, http_method, stream)
+        return self._inference_client.run(
+            data, path, timeout_seconds, headers, http_method, stream, params=params
+        )
 
     def health(self):
         """Checks the health of the deployed application.
