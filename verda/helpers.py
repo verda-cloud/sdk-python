@@ -21,6 +21,9 @@ from typing import Any
 # retargeted at a different endpoint.
 _RELATIVE_SEGMENTS = frozenset({'.', '..'})
 
+# The RFC 3986 unreserved set plus the '/' between path segments.
+_ALLOWED_IN_PATH = re.compile(r'^[A-Za-z0-9._~/-]*$')
+
 # A percent-escape of an unreserved character (RFC 3986, section 2.3). `requests`
 # decodes these while preparing a request, so '%2E' becomes '.' before it is sent.
 _ESCAPED_UNRESERVED = re.compile(r'%([0-9A-Fa-f]{2})')
@@ -78,6 +81,39 @@ def has_relative_path_segment(path: str) -> bool:
         decoded = decoded.replace(separator, '/')
 
     return bool(_RELATIVE_SEGMENTS.intersection(decoded.split('/')))
+
+
+def check_request_path(path: str, allowed: re.Pattern[str] = _ALLOWED_IN_PATH) -> None:
+    r"""Check a finished request path cannot be retargeted or carry a query string.
+
+    Rejects rather than decodes: ``requests`` decodes ``%2E`` back to ``.`` before
+    sending, and an intermediary that unescapes ``%2F`` or treats ``\`` as a separator
+    before normalising the path restores a traversal. Refusing ``%`` and ``\``
+    outright also covers forms a decoder would miss, such as the double-encoded
+    ``..%252f``, and the allowlist refuses matrix parameters such as ``..;``.
+
+    Args:
+        path: A url path, relative to a trusted base url.
+        allowed: Pattern the whole path must match. Defaults to the unreserved set
+            plus ``/``.
+
+    Raises:
+        ValueError: If the path contains a query string or fragment, a character the
+            pattern does not allow, or a relative path segment.
+    """
+    # Query data is passed separately as `params`.
+    if '?' in path or '#' in path:
+        raise ValueError(f'request path must not contain a query string or fragment: {path!r}')
+
+    # Catches '%', which requests may decode into a separator or a dot, and '\',
+    # which some servers normalise to '/'.
+    if not allowed.match(path):
+        raise ValueError(f'request path must not contain an unencoded value: {path!r}')
+
+    if _RELATIVE_SEGMENTS.intersection(path.split('/')):
+        raise ValueError(
+            f'refusing to send a request whose path would escape the API base path: {path!r}'
+        )
 
 
 def stringify_class_object_properties(class_object: type) -> str:
