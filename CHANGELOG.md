@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `InferenceClient` has a new `follow_redirects` argument. It is off by default. When it is on, the client follows a redirect only if the target is inside the deployment: same scheme, host and port, and a path under `endpoint_base_url`. The client follows at most 5 redirects. Any other redirect raises `InferenceClientError`. `AsyncInferenceExecution.status_json()` and `result()` never follow a redirect.
+- When a redirect only adds or removes a trailing slash, the `InferenceClientError` message tells you to change `path`.
+
 ### Security
 
 - `InferenceClient`, `HTTPClient` and the authentication token requests no longer follow HTTP redirects. A 3xx response now raises `InferenceClientError` or `APIException`. The error message includes the `Location` value.

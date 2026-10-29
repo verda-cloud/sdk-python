@@ -116,6 +116,7 @@ PREDICT_URL = f'{BASE_URL}/predict'
 STATUS_URL = 'https://inference.example.com/v1/status/my-deployment'
 RESULT_URL = 'https://inference.example.com/v1/result/my-deployment'
 REDIRECT_URL = 'https://inference.example.com/v1/moved'
+MOVED_URL = f'{BASE_URL}/moved'
 EXECUTION_ID = 'exec-1'
 
 REDIRECT_STATUSES = [301, 302, 303, 307, 308]
@@ -188,6 +189,229 @@ class TestRedirectResponses:
 
         # act
         response = inference_client._session.get(PREDICT_URL, allow_redirects=True)
+
+        # assert
+        assert response.status_code == 307
+        assert len(responses.calls) == 1
+
+    def test_request_redirect_inside_deployment_by_default_failed(self, inference_client):
+        # arrange
+        responses.add(responses.GET, PREDICT_URL, status=307, headers={'Location': MOVED_URL})
+        responses.add(responses.GET, MOVED_URL, json={})
+
+        # act
+        with pytest.raises(InferenceClientError, match='redirects are not followed'):
+            inference_client.get('predict')
+
+        # assert
+        assert inference_client.follow_redirects is False
+        assert len(responses.calls) == 1
+
+    @pytest.mark.parametrize(
+        ('path', 'location', 'hint'),
+        [
+            ('predict', f'{PREDICT_URL}/', 'add a trailing slash to `path`'),
+            ('predict', '/predict/', 'add a trailing slash to `path`'),
+            ('predict/', PREDICT_URL, 'remove the trailing slash from `path`'),
+            ('predict/', '/predict', 'remove the trailing slash from `path`'),
+        ],
+    )
+    def test_request_redirect_trailing_slash_failed(self, inference_client, path, location, hint):
+        # arrange
+        responses.add(
+            responses.GET, f'{BASE_URL}/{path}', status=307, headers={'Location': location}
+        )
+
+        # act
+        with pytest.raises(InferenceClientError) as excinfo:
+            inference_client.get(path)
+
+        # assert
+        assert str(excinfo.value).endswith(hint)
+
+    def test_request_redirect_to_another_path_has_no_hint_failed(self, inference_client):
+        # arrange
+        responses.add(responses.GET, PREDICT_URL, status=307, headers={'Location': MOVED_URL})
+
+        # act
+        with pytest.raises(InferenceClientError) as excinfo:
+            inference_client.get('predict')
+
+        # assert
+        assert str(excinfo.value).endswith('redirects are not followed')
+
+
+@pytest.fixture
+def following_client():
+    return InferenceClient(
+        inference_key='key-123', endpoint_base_url=BASE_URL, follow_redirects=True
+    )
+
+
+class TestFollowRedirects:
+    """With `follow_redirects=True`, only a redirect inside the deployment is followed."""
+
+    @pytest.mark.parametrize(
+        ('location', 'target'),
+        [
+            (MOVED_URL, MOVED_URL),
+            ('/v1/my-deployment/moved', MOVED_URL),
+            ('moved', MOVED_URL),
+            ('/v1/my-deployment/a/b?q=1', f'{BASE_URL}/a/b?q=1'),
+            ('/v1/my-deployment', BASE_URL),
+        ],
+    )
+    @pytest.mark.parametrize('status', REDIRECT_STATUSES)
+    def test_follow_redirect_inside_deployment_successful(
+        self, following_client, status, location, target
+    ):
+        # arrange
+        responses.add(responses.GET, PREDICT_URL, status=status, headers={'Location': location})
+        responses.add(
+            responses.GET,
+            target,
+            json={'out': 1},
+            match=[matchers.header_matcher({'Authorization': 'Bearer key-123'})],
+        )
+
+        # act
+        response = following_client.get('predict')
+
+        # assert
+        assert response.json() == {'out': 1}
+        assert len(responses.calls) == 2
+        assert responses.calls[1].request.url == target
+
+    @pytest.mark.parametrize('status', [307, 308])
+    def test_follow_redirect_keeps_method_and_body_successful(self, following_client, status):
+        # arrange
+        responses.add(responses.POST, PREDICT_URL, status=status, headers={'Location': MOVED_URL})
+        responses.add(
+            responses.POST,
+            MOVED_URL,
+            json={'out': 1},
+            match=[matchers.json_params_matcher({'a': 1})],
+        )
+
+        # act
+        response = following_client.run_sync({'a': 1}, path='predict')
+
+        # assert
+        assert response.output() == {'out': 1}
+        assert responses.calls[1].request.method == 'POST'
+
+    @pytest.mark.parametrize('status', [301, 302, 303])
+    def test_follow_redirect_changes_post_to_get_successful(self, following_client, status):
+        # arrange
+        responses.add(responses.POST, PREDICT_URL, status=status, headers={'Location': MOVED_URL})
+        responses.add(responses.GET, MOVED_URL, json={'out': 1})
+
+        # act
+        response = following_client.run_sync({'a': 1}, path='predict')
+
+        # assert
+        assert response.output() == {'out': 1}
+        assert responses.calls[1].request.method == 'GET'
+        assert responses.calls[1].request.body is None
+
+    @pytest.mark.parametrize(
+        'location',
+        [
+            # another deployment
+            'https://inference.example.com/v1/other-deployment/moved',
+            '/v1/other-deployment/moved',
+            '/v1/moved',
+            # a deployment whose name starts with this one
+            '/v1/my-deployment-2/moved',
+            'https://inference.example.com/v1/my-deployment-2',
+            # relative path segments, plain and encoded
+            '../other-deployment/moved',
+            '/v1/my-deployment/../other-deployment/moved',
+            '/v1/my-deployment/%2e%2e/other-deployment/moved',
+            '/v1/my-deployment/%2E%2E/other-deployment/moved',
+            '/v1/my-deployment/..%2Fother-deployment/moved',
+            '/v1/my-deployment/a/..%2F..%2F..%2Fother-deployment',
+            '/v1/my-deployment/./moved',
+            # another host
+            'https://other.example.net/v1/my-deployment/moved',
+            '//other.example.net/v1/my-deployment/moved',
+            # another scheme
+            'http://inference.example.com/v1/my-deployment/moved',
+            # another port
+            'https://inference.example.com:8443/v1/my-deployment/moved',
+            'https://inference.example.com:bad/v1/my-deployment/moved',
+            # user info
+            'https://user@inference.example.com/v1/my-deployment/moved',
+        ],
+    )
+    @pytest.mark.parametrize('status', REDIRECT_STATUSES)
+    def test_follow_redirect_outside_deployment_failed(self, following_client, status, location):
+        # arrange
+        responses.add(responses.POST, PREDICT_URL, status=status, headers={'Location': location})
+
+        # act
+        with pytest.raises(InferenceClientError, match=rf'redirect \({status}\)') as excinfo:
+            following_client.run_sync({'a': 1}, path='predict')
+
+        # assert
+        assert 'outside the deployment' in str(excinfo.value)
+        assert len(responses.calls) == 1
+
+    def test_follow_redirect_stops_at_rejected_hop_failed(self, following_client):
+        # arrange
+        location = 'https://other.example.net/moved'
+        responses.add(responses.GET, PREDICT_URL, status=307, headers={'Location': MOVED_URL})
+        responses.add(responses.GET, MOVED_URL, status=307, headers={'Location': location})
+
+        # act
+        with pytest.raises(InferenceClientError, match=location):
+            following_client.get('predict')
+
+        # assert
+        assert len(responses.calls) == 2
+
+    def test_follow_redirect_hop_limit_failed(self, following_client):
+        # arrange
+        responses.add(
+            responses.GET, PREDICT_URL, status=307, headers={'Location': f'{BASE_URL}/hop-1'}
+        )
+        for hop in range(1, 10):
+            responses.add(
+                responses.GET,
+                f'{BASE_URL}/hop-{hop}',
+                status=307,
+                headers={'Location': f'{BASE_URL}/hop-{hop + 1}'},
+            )
+
+        # act
+        with pytest.raises(InferenceClientError, match='Exceeded 5 redirects'):
+            following_client.get('predict')
+
+        # assert
+        assert len(responses.calls) == 6
+
+    @pytest.mark.parametrize('entry_point', ['status_json', 'result'])
+    @pytest.mark.parametrize('status', REDIRECT_STATUSES)
+    def test_async_request_redirect_failed(self, following_client, entry_point, status):
+        # arrange
+        _, url, call = ENTRY_POINTS[entry_point]
+        responses.add(responses.GET, url, status=status, headers={'Location': MOVED_URL})
+        responses.add(responses.GET, MOVED_URL, json={'Status': 'Completed'})
+
+        # act
+        with pytest.raises(InferenceClientError, match='redirects are not followed'):
+            call(following_client)
+
+        # assert
+        assert len(responses.calls) == 1
+
+    def test_session_returns_a_redirect_outside_deployment_as_is(self, following_client):
+        # arrange
+        responses.add(responses.GET, PREDICT_URL, status=307, headers={'Location': REDIRECT_URL})
+        responses.add(responses.GET, REDIRECT_URL, json={})
+
+        # act
+        response = following_client._session.get(PREDICT_URL, allow_redirects=True)
 
         # assert
         assert response.status_code == 307
