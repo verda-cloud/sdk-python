@@ -148,7 +148,9 @@ def _is_inside_deployment(endpoint_base_url: str, response_url: str, location: s
     its path must be the deployment path or start with ``<deployment path>/``. The raw
     ``Location`` path must have no relative segment: ``requests`` decodes ``%2E`` before
     it resolves the target, so a prefix check on the resolved url alone misses
-    ``/<deployment>/%2E%2E/<other>``.
+    ``/<deployment>/%2E%2E/<other>``. The rest of the target path must pass the same
+    check as ``path`` in ``_build_url``, which also refuses forms such as ``..;/`` and
+    ``..%252f``. The query string is not checked: it does not change the target path.
 
     Args:
         endpoint_base_url: The deployment's base url, without a trailing slash.
@@ -166,7 +168,13 @@ def _is_inside_deployment(endpoint_base_url: str, response_url: str, location: s
         return False
     deployment_path = urlsplit(endpoint_base_url).path
     target_path = urlsplit(target).path
-    return target_path == deployment_path or target_path.startswith(deployment_path + '/')
+    if target_path != deployment_path and not target_path.startswith(deployment_path + '/'):
+        return False
+    try:
+        check_request_path(target_path[len(deployment_path) :], _ALLOWED_IN_INFERENCE_PATH)
+    except ValueError:
+        return False
+    return True
 
 
 def _trailing_slash_hint(response_url: str, location: str | None) -> str:

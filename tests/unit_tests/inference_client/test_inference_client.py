@@ -390,6 +390,7 @@ class TestFollowRedirects:
             ('moved', MOVED_URL),
             ('/v1/my-deployment/a/b?q=1', f'{BASE_URL}/a/b?q=1'),
             ('/v1/my-deployment', BASE_URL),
+            ('/v1/my-deployment/v1/models/m:predict', f'{BASE_URL}/v1/models/m:predict'),
         ],
     )
     @pytest.mark.parametrize('status', REDIRECT_STATUSES)
@@ -463,6 +464,12 @@ class TestFollowRedirects:
             '/v1/my-deployment/..%2Fother-deployment/moved',
             '/v1/my-deployment/a/..%2F..%2F..%2Fother-deployment',
             '/v1/my-deployment/./moved',
+            '/v1/my-deployment/..;/other-deployment/moved',
+            '/v1/my-deployment/..%252f..%252fother-deployment',
+            # characters that `path` does not allow
+            '/v1/my-deployment/a%20b',
+            '/v1/my-deployment/a;b',
+            '/v1/my-deployment/a\\b',
             # another host
             'https://other.example.net/v1/my-deployment/moved',
             '//other.example.net/v1/my-deployment/moved',
