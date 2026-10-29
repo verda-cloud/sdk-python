@@ -17,10 +17,11 @@ import uuid
 from unittest.mock import Mock
 
 import pytest
+import requests
 import responses  # https://github.com/getsentry/responses
 
 from verda.exceptions import APIException
-from verda.http_client._http_client import _encode_path_segment
+from verda.http_client._http_client import _encode_path_segment, handle_error
 
 INVALID_REQUEST = 'invalid_request'
 INVALID_REQUEST_MESSAGE = 'Your existence is invalid'
@@ -497,3 +498,67 @@ class TestHttpClient:
         # assert
         assert excinfo.value.code == INVALID_REQUEST
         assert excinfo.value.message == INVALID_REQUEST_MESSAGE
+
+    @pytest.mark.parametrize('status', [301, 302, 303, 307, 308])
+    @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
+    def test_request_methods_redirect_failed(self, http_client, method, status):
+        # arrange
+        url = http_client._base_url + '/test'
+        target = http_client._base_url + '/moved'
+        responses.add(method.upper(), url, status=status, headers={'Location': target})
+        responses.add(method.upper(), target, json={})
+        responses.add(responses.GET, target, json={})
+
+        # act
+        with pytest.raises(APIException) as excinfo:
+            getattr(http_client, method)('/test')
+
+        # assert
+        assert excinfo.value.code is None
+        assert f'unexpected redirect ({status})' in excinfo.value.message
+        assert len(responses.calls) == 1
+
+    @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
+    def test_request_methods_accept_allow_redirects_false(self, http_client, method):
+        # arrange
+        url = http_client._base_url + '/test'
+        responses.add(method.upper(), url, json={})
+
+        # act
+        response = getattr(http_client, method)('/test', allow_redirects=False)
+
+        # assert
+        assert response.status_code == 200
+        assert len(responses.calls) == 1
+
+    @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
+    def test_request_methods_allow_redirects_true_redirect_failed(self, http_client, method):
+        # arrange
+        url = http_client._base_url + '/test'
+        target = http_client._base_url + '/moved'
+        responses.add(method.upper(), url, status=307, headers={'Location': target})
+        responses.add(method.upper(), target, json={})
+
+        # act
+        with pytest.raises(APIException) as excinfo:
+            getattr(http_client, method)('/test', allow_redirects=True)
+
+        # assert
+        assert 'unexpected redirect (307)' in excinfo.value.message
+        assert len(responses.calls) == 1
+
+
+def test_handle_error_redirect_failed():
+    # arrange
+    response = requests.Response()
+    response.status_code = 302
+    response.headers['Location'] = 'https://api.example.com/v1/moved'
+
+    # act
+    with pytest.raises(APIException) as excinfo:
+        handle_error(response)
+
+    # assert
+    assert excinfo.value.message == (
+        "unexpected redirect (302) to 'https://api.example.com/v1/moved'; redirects are not followed"
+    )

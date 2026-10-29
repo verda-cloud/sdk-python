@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `InferenceClient`, `HTTPClient` and the authentication token requests no longer follow HTTP redirects. A 3xx response now raises `InferenceClientError` or `APIException`. The error message includes the `Location` value.
+
+### Changed
+
+- `AsyncInferenceExecution.status_json()` and `result()` now use the client `timeout_seconds` and raise `InferenceClientError` on an HTTP error status.
+- `HTTPClient` methods ignore the `allow_redirects` keyword argument.
+
 ## [1.25.0] - 2026-10-23
 
 ### Deprecated

@@ -13,8 +13,16 @@
 # limitations under the License.
 
 import pytest
+import requests
+import responses  # https://github.com/getsentry/responses
+from responses import matchers
 
-from verda.inference_client import InferenceClient, InferenceClientError
+from verda.inference_client import (
+    AsyncInferenceExecution,
+    AsyncStatus,
+    InferenceClient,
+    InferenceClientError,
+)
 
 BASE_URL = 'https://inference.example.com/v1/my-deployment'
 
@@ -102,3 +110,230 @@ class TestEndpointBaseUrl:
     def test_the_deployment_name_is_sliced_out_correctly(self, inference_client):
         assert inference_client.deployment_name == 'my-deployment'
         assert inference_client.base_domain == 'https://inference.example.com/v1'
+
+
+PREDICT_URL = f'{BASE_URL}/predict'
+STATUS_URL = 'https://inference.example.com/v1/status/my-deployment'
+RESULT_URL = 'https://inference.example.com/v1/result/my-deployment'
+REDIRECT_URL = 'https://inference.example.com/v1/moved'
+EXECUTION_ID = 'exec-1'
+
+REDIRECT_STATUSES = [301, 302, 303, 307, 308]
+
+
+def _execution(client):
+    return AsyncInferenceExecution(client, EXECUTION_ID, AsyncStatus.Initialized)
+
+
+# (method, url the call sends to, call)
+ENTRY_POINTS = {
+    'run_sync': ('POST', PREDICT_URL, lambda c: c.run_sync({'a': 1}, path='predict')),
+    'run': ('POST', PREDICT_URL, lambda c: c.run({'a': 1}, path='predict')),
+    'run_no_response': (
+        'POST',
+        PREDICT_URL,
+        lambda c: c.run({'a': 1}, path='predict', no_response=True),
+    ),
+    'get': ('GET', PREDICT_URL, lambda c: c.get('predict')),
+    'post': ('POST', PREDICT_URL, lambda c: c.post('predict', json={'a': 1})),
+    'put': ('PUT', PREDICT_URL, lambda c: c.put('predict', json={'a': 1})),
+    'delete': ('DELETE', PREDICT_URL, lambda c: c.delete('predict')),
+    'patch': ('PATCH', PREDICT_URL, lambda c: c.patch('predict', json={'a': 1})),
+    'head': ('HEAD', PREDICT_URL, lambda c: c.head('predict')),
+    'options': ('OPTIONS', PREDICT_URL, lambda c: c.options('predict')),
+    'health': ('GET', f'{BASE_URL}/health', lambda c: c.health()),
+    'status_json': ('GET', STATUS_URL, lambda c: _execution(c).status_json()),
+    'result': ('GET', RESULT_URL, lambda c: _execution(c).result()),
+}
+
+
+class TestRedirectResponses:
+    """A 3xx response is reported to the caller as an error."""
+
+    @pytest.mark.parametrize('status', REDIRECT_STATUSES)
+    @pytest.mark.parametrize('entry_point', list(ENTRY_POINTS))
+    def test_request_redirect_failed(self, inference_client, entry_point, status):
+        # arrange
+        method, url, call = ENTRY_POINTS[entry_point]
+        responses.add(method, url, status=status, headers={'Location': REDIRECT_URL})
+        for target_method in ('GET', method):
+            responses.add(target_method, REDIRECT_URL, json={'Id': EXECUTION_ID})
+
+        # act
+        with pytest.raises(InferenceClientError, match=rf'redirect \({status}\)'):
+            call(inference_client)
+
+        # assert
+        assert len(responses.calls) == 1
+        assert responses.calls[0].request.url == url
+
+    def test_request_redirect_to_another_host_failed(self, inference_client):
+        # arrange
+        inference_client.set_global_header('X-Request-Source', 'tests')
+        target = 'https://other.example.net/moved'
+        responses.add(responses.POST, PREDICT_URL, status=307, headers={'Location': target})
+        responses.add(responses.POST, target, json={})
+
+        # act
+        with pytest.raises(InferenceClientError, match='redirects are not followed'):
+            inference_client.run_sync({'a': 1}, path='predict')
+
+        # assert
+        assert len(responses.calls) == 1
+
+    def test_session_returns_a_redirect_as_is(self, inference_client):
+        # arrange
+        responses.add(responses.GET, PREDICT_URL, status=307, headers={'Location': REDIRECT_URL})
+        responses.add(responses.GET, REDIRECT_URL, json={})
+
+        # act
+        response = inference_client._session.get(PREDICT_URL, allow_redirects=True)
+
+        # assert
+        assert response.status_code == 307
+        assert len(responses.calls) == 1
+
+
+class TestRequests:
+    """Successful inference requests."""
+
+    def test_run_sync_successful(self, inference_client):
+        # arrange
+        responses.add(
+            responses.POST,
+            PREDICT_URL,
+            json={'out': 1},
+            match=[
+                matchers.json_params_matcher({'a': 1}),
+                matchers.header_matcher({'Authorization': 'Bearer key-123', 'X-Extra': 'x'}),
+            ],
+        )
+
+        # act
+        response = inference_client.run_sync({'a': 1}, path='predict', headers={'X-Extra': 'x'})
+
+        # assert
+        assert response.status_code == 200
+        assert response.output() == {'out': 1}
+
+    def test_run_sync_stream_successful(self, inference_client):
+        # arrange
+        responses.add(
+            responses.POST,
+            PREDICT_URL,
+            body='line 1\nline 2\n',
+            content_type='text/event-stream',
+        )
+
+        # act
+        response = inference_client.run_sync({'a': 1}, path='predict', stream=True)
+
+        # assert
+        assert list(response.stream()) == [b'line 1', b'line 2']
+
+    def test_run_then_status_and_result_successful(self, inference_client):
+        # arrange
+        responses.add(
+            responses.POST,
+            PREDICT_URL,
+            json={'Id': EXECUTION_ID},
+            match=[matchers.header_matcher({'Prefer': 'respond-async'})],
+        )
+        inference_id = matchers.header_matcher(
+            {'Authorization': 'Bearer key-123', 'X-Inference-Id': EXECUTION_ID}
+        )
+        responses.add(responses.GET, STATUS_URL, json={'Status': 'Completed'}, match=[inference_id])
+        responses.add(responses.GET, RESULT_URL, json={'out': 1}, match=[inference_id])
+
+        # act
+        execution = inference_client.run({'a': 1}, path='predict')
+        status = execution.status_json()
+        result = execution.result()
+
+        # assert
+        assert execution.id == EXECUTION_ID
+        assert status == {'Status': 'Completed'}
+        assert execution.status() == AsyncStatus.Completed
+        assert result == {'out': 1}
+
+    def test_result_text_successful(self, inference_client):
+        # arrange
+        responses.add(responses.GET, RESULT_URL, body='plain', content_type='text/plain')
+
+        # act
+        result = _execution(inference_client).result()
+
+        # assert
+        assert result == {'result': 'plain'}
+
+    @pytest.mark.parametrize('entry_point', ['status_json', 'result'])
+    def test_async_requests_use_the_client_timeout(self, inference_client, entry_point):
+        # arrange
+        _, url, call = ENTRY_POINTS[entry_point]
+        responses.add(responses.GET, url, json={'Status': 'Completed'})
+
+        # act
+        call(inference_client)
+
+        # assert
+        assert responses.calls[0].request.req_kwargs['timeout'] == inference_client.timeout_seconds
+
+    @pytest.mark.parametrize('entry_point', ['status_json', 'result'])
+    def test_async_requests_failed(self, inference_client, entry_point):
+        # arrange
+        _, url, call = ENTRY_POINTS[entry_point]
+        responses.add(responses.GET, url, status=500, json={'error': 'boom'})
+
+        # act
+        with pytest.raises(InferenceClientError, match='500'):
+            call(inference_client)
+
+    @pytest.mark.parametrize('entry_point', ['status_json', 'result'])
+    def test_async_requests_timed_out(self, inference_client, entry_point):
+        # arrange
+        _, url, call = ENTRY_POINTS[entry_point]
+        responses.add(responses.GET, url, body=requests.exceptions.ReadTimeout())
+
+        # act
+        with pytest.raises(InferenceClientError, match='timed out'):
+            call(inference_client)
+
+    @pytest.mark.parametrize(
+        'entry_point', ['get', 'post', 'put', 'delete', 'patch', 'head', 'options']
+    )
+    def test_http_method_helpers_successful(self, inference_client, entry_point):
+        # arrange
+        method, url, call = ENTRY_POINTS[entry_point]
+        responses.add(method, url, status=200)
+
+        # act
+        response = call(inference_client)
+
+        # assert
+        assert response.status_code == 200
+        assert len(responses.calls) == 1
+
+    def test_get_with_params_successful(self, inference_client):
+        # arrange
+        responses.add(
+            responses.GET,
+            PREDICT_URL,
+            json={},
+            match=[matchers.query_param_matcher({'q': 'x'})],
+        )
+
+        # act
+        response = inference_client.get('predict', params={'q': 'x'})
+
+        # assert
+        assert response.status_code == 200
+
+    def test_health_successful(self, inference_client):
+        # arrange
+        responses.add(responses.GET, f'{BASE_URL}/health', json={'ok': True})
+
+        # act
+        response = inference_client.health()
+
+        # assert
+        assert response.json() == {'ok': True}

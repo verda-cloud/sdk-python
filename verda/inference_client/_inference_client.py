@@ -119,6 +119,18 @@ class InferenceResponse:
                     yield chunk
 
 
+class _NoRedirectSession(requests.Session):
+    """A session that never follows a redirect, even if asked to.
+
+    Requests are sent with ``allow_redirects=False``. This is the backstop for a call
+    that forgets: the 3xx response is returned as-is instead of being followed.
+    """
+
+    def get_redirect_target(self, resp: requests.Response) -> None:  # noqa: ARG002
+        """Report no redirect target, so ``resolve_redirects`` has nothing to follow."""
+        return None
+
+
 class InferenceClient:
     """Inference client."""
 
@@ -162,7 +174,7 @@ class InferenceClient:
         self.base_domain = self.endpoint_base_url[: self.endpoint_base_url.rindex('/')]
         self.deployment_name = self.endpoint_base_url[self.endpoint_base_url.rindex('/') + 1 :]
         self.timeout_seconds = timeout_seconds
-        self._session = requests.Session()
+        self._session = _NoRedirectSession()
         self._global_headers = {
             'Authorization': f'Bearer {inference_key}',
             'Content-Type': 'application/json',
@@ -265,14 +277,54 @@ class InferenceClient:
             InferenceClientError: If the request fails
         """
         timeout = kwargs.pop('timeout_seconds', self.timeout_seconds)
+        return self._send(
+            method,
+            self._build_url(path),
+            path,
+            timeout,
+            headers=self._build_request_headers(kwargs.pop('headers', None)),
+            **kwargs,
+        )
+
+    def _send(
+        self, method: str, url: str, path: str, timeout: float | None, **kwargs
+    ) -> requests.Response:
+        """Send a request without following redirects.
+
+        Every request carrying the inference key goes through here. A redirect is
+        not followed: ``requests`` keeps the ``Authorization`` header, method and body
+        on a same-host redirect, so a ``Location`` from the response would retarget
+        the request at a path that never went through ``_build_url``.
+
+        Args:
+            method: HTTP method to use
+            url: Full request URL
+            path: The path as the caller gave it, for error messages
+            timeout: Request timeout in seconds
+            **kwargs: Additional arguments to pass to the request
+
+        Returns:
+            Response object from the request
+
+        Raises:
+            InferenceClientError: If the request fails or the response is a redirect
+        """
         try:
             response = self._session.request(
                 method=method,
-                url=self._build_url(path),
-                headers=self._build_request_headers(kwargs.pop('headers', None)),
+                url=url,
                 timeout=timeout,
+                allow_redirects=False,
                 **kwargs,
             )
+            # raise_for_status() lets a 3xx through.
+            if 300 <= response.status_code < 400:
+                location = response.headers.get('Location')
+                response.close()
+                raise InferenceClientError(
+                    f'Request to {path} returned a redirect ({response.status_code}) '
+                    f'to {location!r}; redirects are not followed'
+                )
             response.raise_for_status()
             return response
         except requests.exceptions.Timeout as e:
@@ -531,21 +583,30 @@ class AsyncInferenceExecution:
         """
         return self._status
 
+    def _get(self, url: str) -> requests.Response:
+        """GET an async status or result url for this execution."""
+        client = self._inference_client
+        return client._send(
+            'GET',
+            url,
+            url,
+            client.timeout_seconds,
+            headers=client._build_request_headers({self.INFERENCE_ID_HEADER: self.id}),
+        )
+
     def status_json(self) -> dict[str, Any]:
         """Get the current status of the async inference execution. Return the status json.
 
         Returns:
             dict[str, Any]: The status response containing the execution status and other metadata
+
+        Raises:
+            InferenceClientError: If the request fails
         """
         url = (
             f'{self._inference_client.base_domain}/status/{self._inference_client.deployment_name}'
         )
-        response = self._inference_client._session.get(
-            url,
-            headers=self._inference_client._build_request_headers(
-                {self.INFERENCE_ID_HEADER: self.id}
-            ),
-        )
+        response = self._get(url)
 
         response_json = response.json()
         self._status = AsyncStatus(response_json['Status'])
@@ -557,16 +618,14 @@ class AsyncInferenceExecution:
 
         Returns:
             dict[str, Any]: The results of the inference execution
+
+        Raises:
+            InferenceClientError: If the request fails
         """
         url = (
             f'{self._inference_client.base_domain}/result/{self._inference_client.deployment_name}'
         )
-        response = self._inference_client._session.get(
-            url,
-            headers=self._inference_client._build_request_headers(
-                {self.INFERENCE_ID_HEADER: self.id}
-            ),
-        )
+        response = self._get(url)
 
         if response.headers['Content-Type'] == 'application/json':
             return response.json()

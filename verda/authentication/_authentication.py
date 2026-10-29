@@ -54,7 +54,9 @@ class AuthenticationService:
             'client_secret': self._client_secret,
         }
 
-        response = requests.post(url, json=payload, headers=self._generate_headers())
+        response = requests.post(
+            url, json=payload, headers=self._generate_headers(), allow_redirects=False
+        )
         handle_error(response)
 
         auth_data = response.json()
@@ -87,7 +89,9 @@ class AuthenticationService:
 
         payload = {'grant_type': REFRESH_TOKEN, 'refresh_token': self._refresh_token}
 
-        response = requests.post(url, json=payload, headers=self._generate_headers())
+        response = requests.post(
+            url, json=payload, headers=self._generate_headers(), allow_redirects=False
+        )
 
         # if refresh token is also expired, authenticate again:
         if response.status_code == 401 or response.status_code == 400:
