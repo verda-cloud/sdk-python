@@ -1,9 +1,9 @@
 Containers
 ==========
 
-.. autoclass:: verda.containers.ContainersService
+.. autoclass:: verda.containers.containers.ContainersService
    :members:
 
-.. autoclass:: verda.containers.Container
+.. autoclass:: verda.containers.containers.Container
    :members:
 

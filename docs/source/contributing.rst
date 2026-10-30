@@ -1,2 +1,1 @@
-.. include:: ../../CONTRIBUTING.md
-   :parser: recommonmark
+.. include:: ../../CONTRIBUTING.rst

@@ -1,8 +1,8 @@
 Images
 ======
 
-.. autoclass:: verda.images.ImagesService
+.. autoclass:: verda.images.images.ImagesService
    :members:
 
-.. autoclass:: verda.images.Image
+.. autoclass:: verda.images.images.Image
    :members:
