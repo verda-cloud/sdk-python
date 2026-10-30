@@ -40,10 +40,14 @@ data = {
 # Run the request asynchronously using the inference client
 async_inference_execution = inference_client.run(data=data, path='v1/completions')
 
-# Poll for status until completion
-while async_inference_execution.status() != AsyncStatus.Completed:
+# Poll for status until the job completes or fails
+while async_inference_execution.status() not in (AsyncStatus.Completed, AsyncStatus.Error):
     print(async_inference_execution.status_json())
     sleep(5)
 
-# Print the response
-print(async_inference_execution.output())
+if async_inference_execution.status() == AsyncStatus.Error:
+    # The status json has an Error field with the reason
+    print(f'Inference failed: {async_inference_execution.status_json()}')
+else:
+    # Print the response
+    print(async_inference_execution.output())

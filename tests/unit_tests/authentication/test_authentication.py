@@ -242,3 +242,38 @@ class TestAuthenticationService:
         # assert
         assert is_expired_current
         assert not is_expired_future
+
+    @pytest.mark.parametrize('status', [302, 307, 308])
+    def test_authenticate_redirect_failed(self, authentication_service, endpoint, status):
+        # arrange
+        target = BASE_URL + '/moved'
+        responses.add(responses.POST, endpoint, status=status, headers={'Location': target})
+        responses.add(responses.POST, target, json={})
+        responses.add(responses.GET, target, json={})
+
+        # act
+        with pytest.raises(APIException) as excinfo:
+            authentication_service.authenticate()
+
+        # assert
+        assert excinfo.value.code is None
+        assert f'unexpected redirect ({status})' in excinfo.value.message
+        assert len(responses.calls) == 1
+
+    @pytest.mark.parametrize('status', [302, 307, 308])
+    def test_refresh_redirect_failed(self, authentication_service, endpoint, status):
+        # arrange
+        authentication_service._refresh_token = REFRESH_TOKEN
+        target = BASE_URL + '/moved'
+        responses.add(responses.POST, endpoint, status=status, headers={'Location': target})
+        responses.add(responses.POST, target, json={})
+        responses.add(responses.GET, target, json={})
+
+        # act
+        with pytest.raises(APIException) as excinfo:
+            authentication_service.refresh()
+
+        # assert
+        assert excinfo.value.code is None
+        assert f'unexpected redirect ({status})' in excinfo.value.message
+        assert len(responses.calls) == 1

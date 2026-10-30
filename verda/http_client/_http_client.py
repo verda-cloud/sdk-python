@@ -70,7 +70,12 @@ def _encode_path_segment(value: object) -> str:
 
 
 def handle_error(response: requests.Response) -> None:
-    """Checks for the response status code and raises an exception if it's 400 or higher.
+    """Checks the response and raises an exception for a redirect or an error status.
+
+    Requests are sent with ``allow_redirects=False``, so a redirect arrives here
+    unfollowed and is an error: ``response.ok`` alone would return it to the caller as
+    a success. A redirect is what ``requests`` would follow: 301, 302, 303, 307 or 308
+    with a ``Location`` header. Any other 3xx, such as 304, is returned unchanged.
 
     Args:
         response: The API call response.
@@ -78,6 +83,13 @@ def handle_error(response: requests.Response) -> None:
     Raises:
         APIException: An api exception with message and error type code.
     """
+    if response.is_redirect:
+        location = response.headers['Location']
+        raise APIException(
+            None,
+            f'unexpected redirect ({response.status_code}) to {location!r}; '
+            'redirects are not followed',
+        )
     if not response.ok:
         data = json.loads(response.text)
         code = data['code'] if 'code' in data else None
@@ -291,6 +303,7 @@ class HTTPClient:
             params: Dictionary of querystring data to attach to the request.
             path_params: Values substituted into ``{name}`` placeholders in the url.
             **kwargs: Additional keyword arguments passed through to ``requests``.
+                ``allow_redirects`` is ignored: redirects are never followed.
 
         Returns:
             The response object.
@@ -299,13 +312,25 @@ class HTTPClient:
             ValueError: If the url and ``path_params`` do not produce a safe path.
             APIException: An api exception with message and error type code.
         """
+        # Accepted for compatibility but never passed on: True would follow a redirect,
+        # and False beside our own keyword would raise TypeError.
+        kwargs.pop('allow_redirects', None)
+
         # Validate before the refresh so a rejected name costs no auth round-trip.
         url = self._add_base_url(self._build_path(url, path_params))
 
         self._refresh_token_if_expired()
 
+        # A followed same-host redirect keeps the bearer token, method and body, and
+        # its target never went through the path validation above.
         response = requests.request(
-            method, url, json=json, headers=self._generate_headers(), params=params, **kwargs
+            method,
+            url,
+            json=json,
+            headers=self._generate_headers(),
+            params=params,
+            allow_redirects=False,
+            **kwargs,
         )
         handle_error(response)
 

@@ -54,7 +54,13 @@ response = deployment.run(
     headers=header,
 )
 
-while response.status() != AsyncStatus.Completed:
+# Poll for status until the job completes or fails
+while response.status() not in (AsyncStatus.Completed, AsyncStatus.Error):
     print(response.status_json())
     sleep(1)
-print(response.output())
+
+if response.status() == AsyncStatus.Error:
+    # The status json has an Error field with the reason
+    print(f'Inference failed: {response.status_json()}')
+else:
+    print(response.output())

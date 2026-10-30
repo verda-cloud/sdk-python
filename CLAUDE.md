@@ -105,11 +105,15 @@ Reject, do not encode: `requests` decodes `%2E` back to `.` before sending, and 
 
 All five verbs delegate to a single private `_request`, which is where the url is built and validated. Add new verbs by delegating to it, never by calling `requests` directly.
 
+**Never follow a redirect.** Every request that carries credentials is sent with `allow_redirects=False`, and a redirect raises: `handle_error` for `HTTPClient` and the auth token calls, and `InferenceClient._send` for inference. `requests` keeps `Authorization` on a same-host redirect, and a 307/308 also keeps the method and body. The `Location` target never went through path validation. Any new send site must pass `allow_redirects=False` and go through the existing error check. Inference requests, including `AsyncInferenceExecution` status and result, go through `InferenceClient._send`, never `_session` directly. A redirect is `requests.Response.is_redirect`: 301, 302, 303, 307 or 308 with a `Location` header, the same rule `requests` uses to follow. Any other 3xx, such as 304, goes back to the caller.
+
+The one exception is `InferenceClient(follow_redirects=True)`, an opt-in for deployment calls only. `_send` then passes `allow_redirects=True`, and `_RedirectPolicySession.get_redirect_target` reports a target only if `_is_inside_deployment` accepts it: same scheme, host and port as `endpoint_base_url`, a path equal to the deployment path or under `<deployment path>/`, a raw `Location` path that passes `has_relative_path_segment`, and a target path under the deployment path that passes `check_request_path` with `_ALLOWED_IN_INFERENCE_PATH`, the same check as `path`. A rejected target stops `resolve_redirects`, and `_send` raises on the remaining redirect. The session caps hops at 5. `AsyncInferenceExecution` status and result never follow, because those urls belong to the gateway. Do not add the flag to `HTTPClient` or the auth token calls.
+
 The check is `_encode_path_segment` in `verda/http_client/_http_client.py`; `path_params` is the only supported way to put a caller-supplied value into a path. `_add_base_url` re-asserts the same allowlist on the finished path, as a backstop for a call site that skips `path_params`.
 
 The finished-path check is `verda.helpers.check_request_path`. It rejects `?`, `#`, any character outside an allowlist, and `.`/`..` segments. `HTTPClient._add_base_url` calls it with the default allowlist (unreserved set plus `/`). `InferenceClient._build_url` calls it on the caller's multi-segment `path` with `_ALLOWED_IN_INFERENCE_PATH`, which also allows `:` (TensorFlow Serving's `my_model:predict`). Query data for both clients goes in `params`, never in the path. Do not re-implement the check.
 
-`verda.helpers.has_relative_path_segment` strips the query string and decodes escapes and encoded separators. It is for `InferenceClient`'s `endpoint_base_url` only. Do not use it to check a request path.
+`verda.helpers.has_relative_path_segment` strips the query string and decodes escapes and encoded separators. It is for two values only: `InferenceClient`'s `endpoint_base_url`, and the raw `Location` path in the `follow_redirects` check (`_is_inside_deployment`), where it runs together with `check_request_path`. Do not use it to check a request path that the SDK builds.
 
 ## Code style
 
