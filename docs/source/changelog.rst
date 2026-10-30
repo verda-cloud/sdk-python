@@ -1,1 +1,2 @@
-.. include:: ../../CHANGELOG.rst
+.. include:: ../../CHANGELOG.md
+   :parser: recommonmark

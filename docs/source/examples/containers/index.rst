@@ -18,4 +18,5 @@ This section contains examples demonstrating how to work with containers in Verd
    inference_async
    inference_sync
    inference_minimal
+   inference_minimal_async
    inference_redirects
