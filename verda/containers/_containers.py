@@ -487,7 +487,7 @@ class Deployment:
         self,
         data: dict[str, Any],
         path: str = '',
-        timeout_seconds: int = 60 * 5,
+        timeout_seconds: int | None = None,
         headers: dict[str, str] | None = None,
         http_method: str = 'POST',
         stream: bool = False,
@@ -498,7 +498,8 @@ class Deployment:
         Args:
             data: The data to send in the request.
             path: The endpoint path to send the request to.
-            timeout_seconds: Maximum time to wait for the response.
+            timeout_seconds: Maximum time to wait for the response. Defaults to the
+                inference client ``timeout_seconds``.
             headers: Optional headers to include in the request.
             http_method: The HTTP method to use for the request.
             stream: Whether to stream the response.
@@ -519,7 +520,7 @@ class Deployment:
         self,
         data: dict[str, Any],
         path: str = '',
-        timeout_seconds: int = 60 * 5,
+        timeout_seconds: int | None = None,
         headers: dict[str, str] | None = None,
         http_method: str = 'POST',
         stream: bool = False,
@@ -530,7 +531,8 @@ class Deployment:
         Args:
             data: The data to send in the request.
             path: The endpoint path to send the request to.
-            timeout_seconds: Maximum time to wait for the response.
+            timeout_seconds: Maximum time to wait for the response. Defaults to the
+                inference client ``timeout_seconds``.
             headers: Optional headers to include in the request.
             http_method: The HTTP method to use for the request.
             stream: Whether to stream the response.

@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `AsyncInferenceExecution.status_json()` and `result()` now use the client `timeout_seconds` and raise `InferenceClientError` on an HTTP error status.
 - The `InferenceClient` methods `get`, `post`, `put`, `delete`, `patch`, `head`, `options` and `health` now use the client `timeout_seconds` when you do not give `timeout_seconds`. Before, these calls had no timeout. To wait longer, set `timeout_seconds` on the client or on the call.
+- `InferenceClient.run_sync`, `InferenceClient.run`, `Deployment.run_sync` and `Deployment.run` now use the client `timeout_seconds` when you do not give `timeout_seconds`. Before, they always used 5 minutes, even when the client was created with a different `timeout_seconds`.
 - `HTTPClient` methods ignore the `allow_redirects` keyword argument.
 - An `InferenceClientError` for an HTTP error status now ends with the response body, cut to 500 characters. For a failed async job, `result()` returns the deployment's error status, so the error now shows the deployment's message.
 - **Breaking:** `InferenceClient` no longer accepts a query string or fragment in `path`. Pass query data as `params` instead. For example, replace `client.get('v1/models?limit=10')` with `client.get('v1/models', params={'limit': 10})`, and `client.run_sync(data, path='v1/completions?stream=true')` with `client.run_sync(data, path='v1/completions', params={'stream': 'true'})`.

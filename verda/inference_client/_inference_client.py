@@ -524,7 +524,7 @@ class InferenceClient:
         self,
         data: dict[str, Any],
         path: str = '',
-        timeout_seconds: int = 60 * 5,
+        timeout_seconds: int | None = None,
         headers: dict[str, str] | None = None,
         http_method: str = 'POST',
         stream: bool = False,
@@ -535,7 +535,8 @@ class InferenceClient:
         Args:
             data: The data payload to send with the request
             path: API endpoint path. Defaults to empty string.
-            timeout_seconds: Request timeout in seconds. Defaults to 5 minutes.
+            timeout_seconds: Request timeout in seconds. Defaults to the client
+                ``timeout_seconds``.
             headers: Optional headers to include in the request
             http_method: HTTP method to use. Defaults to "POST".
             stream: Whether to stream the response. Defaults to False.
@@ -568,7 +569,7 @@ class InferenceClient:
         self,
         data: dict[str, Any],
         path: str = '',
-        timeout_seconds: int = 60 * 5,
+        timeout_seconds: int | None = None,
         headers: dict[str, str] | None = None,
         http_method: str = 'POST',
         no_response: bool = False,
@@ -579,7 +580,8 @@ class InferenceClient:
         Args:
             data: The data payload to send with the request
             path: API endpoint path. Defaults to empty string.
-            timeout_seconds: Request timeout in seconds. Defaults to 5 minutes.
+            timeout_seconds: Request timeout in seconds. Defaults to the client
+                ``timeout_seconds``.
             headers: Optional headers to include in the request
             http_method: HTTP method to use. Defaults to "POST".
             no_response: If True, don't wait for response. Defaults to False.
