@@ -405,7 +405,10 @@ class InferenceClient:
         Raises:
             InferenceClientError: If the request fails
         """
-        timeout = kwargs.pop('timeout_seconds', self.timeout_seconds)
+        # The HTTP verb helpers pass timeout_seconds=None when the caller sets none.
+        timeout = kwargs.pop('timeout_seconds', None)
+        if timeout is None:
+            timeout = self.timeout_seconds
         return self._send(
             method,
             self._build_url(path),
@@ -432,7 +435,7 @@ class InferenceClient:
         method and body on a same-host redirect, so a ``Location`` from the response
         would retarget the request at a path that never went through ``_build_url``.
         With ``follow_redirects``, the session follows only a target inside the
-        deployment, and any other 3xx is returned here and raised.
+        deployment, and any other redirect is returned here and raised.
 
         Args:
             method: HTTP method to use
@@ -457,13 +460,15 @@ class InferenceClient:
                 allow_redirects=follow_redirects,
                 **kwargs,
             )
-            # raise_for_status() lets a 3xx through.
-            if 300 <= response.status_code < 400:
-                location = response.headers.get('Location')
+            # raise_for_status() lets a 3xx through. is_redirect is the rule requests
+            # uses to follow: 301, 302, 303, 307 or 308 with a Location header. Any
+            # other 3xx, such as 304 Not Modified, goes back to the caller.
+            if response.is_redirect:
+                location = response.headers['Location']
                 response.close()
                 reason = (
                     'the target is outside the deployment and was not followed'
-                    if follow_redirects and location
+                    if follow_redirects
                     else 'redirects are not followed'
                 )
                 raise InferenceClientError(

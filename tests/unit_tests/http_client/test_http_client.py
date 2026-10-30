@@ -564,3 +564,20 @@ def test_handle_error_redirect_failed():
     assert excinfo.value.message == (
         "unexpected redirect (302) to 'https://api.example.com/v1/moved'; redirects are not followed"
     )
+
+
+@pytest.mark.parametrize(
+    ('status', 'headers'),
+    [(304, {}), (304, {'Location': 'https://api.example.com/v1/moved'}), (300, {}), (307, {})],
+)
+def test_handle_error_non_redirect_3xx_successful(status, headers):
+    # arrange
+    response = requests.Response()
+    response.status_code = status
+    response.headers.update(headers)
+
+    # act
+    handle_error(response)
+
+    # assert
+    assert response.status_code == status

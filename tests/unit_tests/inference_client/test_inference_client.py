@@ -379,6 +379,30 @@ class TestRedirectResponses:
         assert str(excinfo.value).endswith('redirects are not followed')
 
     @pytest.mark.parametrize(
+        ('status', 'headers'),
+        [
+            (304, {}),
+            (304, {'Location': MOVED_URL}),
+            (300, {}),
+            (307, {}),
+        ],
+    )
+    @pytest.mark.parametrize('follow_redirects', [False, True])
+    def test_request_non_redirect_3xx_successful(self, follow_redirects, status, headers):
+        # arrange
+        client = InferenceClient(
+            inference_key='key-123', endpoint_base_url=BASE_URL, follow_redirects=follow_redirects
+        )
+        responses.add(responses.GET, PREDICT_URL, status=status, headers=headers)
+
+        # act
+        response = client.get('predict')
+
+        # assert
+        assert response.status_code == status
+        assert len(responses.calls) == 1
+
+    @pytest.mark.parametrize(
         'location',
         [
             'https://[invalid',
@@ -697,6 +721,30 @@ class TestRequests:
         # assert
         assert response.status_code == 200
         assert len(responses.calls) == 1
+
+    @pytest.mark.parametrize(
+        'entry_point', ['get', 'post', 'put', 'delete', 'patch', 'head', 'options', 'health']
+    )
+    def test_http_method_helpers_client_timeout_successful(self, inference_client, entry_point):
+        # arrange
+        method, url, call = ENTRY_POINTS[entry_point]
+        responses.add(method, url, status=200)
+
+        # act
+        call(inference_client)
+
+        # assert
+        assert responses.calls[0].request.req_kwargs['timeout'] == inference_client.timeout_seconds
+
+    def test_http_method_helpers_explicit_timeout_successful(self, inference_client):
+        # arrange
+        responses.add(responses.GET, PREDICT_URL, status=200)
+
+        # act
+        inference_client.get('predict', timeout_seconds=7)
+
+        # assert
+        assert responses.calls[0].request.req_kwargs['timeout'] == 7
 
     def test_get_with_params_successful(self, inference_client):
         # arrange

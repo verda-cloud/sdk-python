@@ -70,10 +70,12 @@ def _encode_path_segment(value: object) -> str:
 
 
 def handle_error(response: requests.Response) -> None:
-    """Checks for the response status code and raises an exception if it's 300 or higher.
+    """Checks the response and raises an exception for a redirect or an error status.
 
-    Requests are sent with ``allow_redirects=False``, so a 3xx arrives here unfollowed
-    and is an error: ``response.ok`` alone would return it to the caller as a success.
+    Requests are sent with ``allow_redirects=False``, so a redirect arrives here
+    unfollowed and is an error: ``response.ok`` alone would return it to the caller as
+    a success. A redirect is what ``requests`` would follow: 301, 302, 303, 307 or 308
+    with a ``Location`` header. Any other 3xx, such as 304, is returned unchanged.
 
     Args:
         response: The API call response.
@@ -81,8 +83,8 @@ def handle_error(response: requests.Response) -> None:
     Raises:
         APIException: An api exception with message and error type code.
     """
-    if 300 <= response.status_code < 400:
-        location = response.headers.get('Location')
+    if response.is_redirect:
+        location = response.headers['Location']
         raise APIException(
             None,
             f'unexpected redirect ({response.status_code}) to {location!r}; '
