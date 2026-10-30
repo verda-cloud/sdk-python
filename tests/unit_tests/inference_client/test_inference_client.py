@@ -35,6 +35,7 @@ RESULT_URL = 'https://inference.example.com/v1/result/my-deployment'
 REDIRECT_URL = 'https://inference.example.com/v1/moved'
 MOVED_URL = f'{BASE_URL}/moved'
 EXECUTION_ID = 'exec-1'
+CLIENT_TIMEOUT_SECONDS = 900
 
 REDIRECT_STATUSES = [301, 302, 303, 307, 308]
 
@@ -771,18 +772,6 @@ class TestRequests:
         assert str(excinfo.value).endswith(f'for url: {PREDICT_URL}')
 
     @pytest.mark.parametrize('entry_point', ['status_json', 'result'])
-    def test_async_requests_client_timeout_successful(self, inference_client, entry_point):
-        # arrange
-        _, url, call = ENTRY_POINTS[entry_point]
-        responses.add(responses.GET, url, json={'Status': 'Completed'})
-
-        # act
-        call(inference_client)
-
-        # assert
-        assert responses.calls[0].request.req_kwargs['timeout'] == inference_client.timeout_seconds
-
-    @pytest.mark.parametrize('entry_point', ['status_json', 'result'])
     def test_async_requests_failed(self, inference_client, entry_point):
         # arrange
         _, url, call = ENTRY_POINTS[entry_point]
@@ -817,26 +806,41 @@ class TestRequests:
         assert response.status_code == 200
         assert len(responses.calls) == 1
 
-    @pytest.mark.parametrize(
-        'entry_point', ['get', 'post', 'put', 'delete', 'patch', 'head', 'options', 'health']
-    )
-    def test_http_method_helpers_client_timeout_successful(self, inference_client, entry_point):
+    @pytest.mark.parametrize('entry_point', list(ENTRY_POINTS))
+    def test_client_timeout_successful(self, entry_point):
         # arrange
+        client = InferenceClient(
+            inference_key='key-123',
+            endpoint_base_url=BASE_URL,
+            timeout_seconds=CLIENT_TIMEOUT_SECONDS,
+        )
         method, url, call = ENTRY_POINTS[entry_point]
-        responses.add(method, url, status=200)
+        # A HEAD response has no body.
+        body = None if method == 'HEAD' else {'Id': EXECUTION_ID, 'Status': 'Completed'}
+        responses.add(method, url, json=body)
 
         # act
-        call(inference_client)
+        call(client)
 
         # assert
-        assert responses.calls[0].request.req_kwargs['timeout'] == inference_client.timeout_seconds
+        assert responses.calls[0].request.req_kwargs['timeout'] == CLIENT_TIMEOUT_SECONDS
 
-    def test_http_method_helpers_explicit_timeout_successful(self, inference_client):
+    @pytest.mark.parametrize(
+        'call',
+        [
+            lambda c: c.get('predict', timeout_seconds=7),
+            lambda c: c.run_sync({'a': 1}, path='predict', timeout_seconds=7),
+            lambda c: c.run({'a': 1}, path='predict', timeout_seconds=7),
+        ],
+        ids=['get', 'run_sync', 'run'],
+    )
+    def test_explicit_timeout_successful(self, inference_client, call):
         # arrange
+        responses.add(responses.POST, PREDICT_URL, json={'Id': EXECUTION_ID})
         responses.add(responses.GET, PREDICT_URL, status=200)
 
         # act
-        inference_client.get('predict', timeout_seconds=7)
+        call(inference_client)
 
         # assert
         assert responses.calls[0].request.req_kwargs['timeout'] == 7
