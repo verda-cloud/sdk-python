@@ -55,6 +55,6 @@ with InferenceClient(
         response = inference_client.run_sync(data=data, path='v1/completions')
         print(response.output())
     except InferenceClientError as e:
-        # A redirect to a target outside the deployment is not followed. The error
+        # A redirect that fails the follow_redirects check is not followed. The error
         # message shows the Location value, and a hint if only a trailing slash differs.
         print(f'Request failed: {e}')

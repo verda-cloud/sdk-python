@@ -539,7 +539,7 @@ class TestFollowRedirects:
             following_client.run_sync({'a': 1}, path='predict')
 
         # assert
-        assert 'outside the deployment' in str(excinfo.value)
+        assert 'failed the follow_redirects check' in str(excinfo.value)
         assert len(responses.calls) == 1
 
     def test_follow_redirect_stops_at_rejected_hop_failed(self, following_client):

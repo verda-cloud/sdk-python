@@ -467,7 +467,7 @@ class InferenceClient:
                 location = response.headers['Location']
                 response.close()
                 reason = (
-                    'the target is outside the deployment and was not followed'
+                    'the target failed the follow_redirects check and was not followed'
                     if follow_redirects
                     else 'redirects are not followed'
                 )

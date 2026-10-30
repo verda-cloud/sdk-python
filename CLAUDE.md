@@ -113,7 +113,7 @@ The check is `_encode_path_segment` in `verda/http_client/_http_client.py`; `pat
 
 The finished-path check is `verda.helpers.check_request_path`. It rejects `?`, `#`, any character outside an allowlist, and `.`/`..` segments. `HTTPClient._add_base_url` calls it with the default allowlist (unreserved set plus `/`). `InferenceClient._build_url` calls it on the caller's multi-segment `path` with `_ALLOWED_IN_INFERENCE_PATH`, which also allows `:` (TensorFlow Serving's `my_model:predict`). Query data for both clients goes in `params`, never in the path. Do not re-implement the check.
 
-`verda.helpers.has_relative_path_segment` strips the query string and decodes escapes and encoded separators. It is for `InferenceClient`'s `endpoint_base_url` only. Do not use it to check a request path.
+`verda.helpers.has_relative_path_segment` strips the query string and decodes escapes and encoded separators. It is for two values only: `InferenceClient`'s `endpoint_base_url`, and the raw `Location` path in the `follow_redirects` check (`_is_inside_deployment`), where it runs together with `check_request_path`. Do not use it to check a request path that the SDK builds.
 
 ## Code style
 
