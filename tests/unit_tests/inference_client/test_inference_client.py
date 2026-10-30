@@ -675,6 +675,101 @@ class TestRequests:
         # assert
         assert result == {'result': 'plain'}
 
+    @pytest.mark.parametrize(
+        'content_type', ['application/json; charset=utf-8', 'Application/JSON', 'application/json']
+    )
+    def test_result_json_content_type_successful(self, inference_client, content_type):
+        # arrange
+        responses.add(responses.GET, RESULT_URL, body='{"out": 1}', content_type=content_type)
+
+        # act
+        result = _execution(inference_client).result()
+
+        # assert
+        assert result == {'out': 1}
+
+    def test_result_without_content_type_successful(self, inference_client):
+        # arrange
+        responses.add(responses.GET, RESULT_URL, body='plain', content_type=None)
+
+        # act
+        result = _execution(inference_client).result()
+
+        # assert
+        assert 'Content-Type' not in responses.calls[0].response.headers
+        assert result == {'result': 'plain'}
+
+    def test_status_json_error_successful(self, inference_client):
+        # arrange
+        status = {
+            'Id': EXECUTION_ID,
+            'Status': 'Error',
+            'Error': {'Message': 'inference returned non-200 status code 500'},
+        }
+        responses.add(responses.GET, STATUS_URL, json=status)
+        execution = _execution(inference_client)
+
+        # act
+        response_json = execution.status_json()
+
+        # assert
+        assert response_json == status
+        assert execution.status() == AsyncStatus.Error
+
+    def test_result_of_failed_job_failed(self, inference_client):
+        # arrange
+        responses.add(
+            responses.GET,
+            RESULT_URL,
+            status=500,
+            body='model crashed: out of memory',
+            content_type='text/plain',
+        )
+
+        # act
+        with pytest.raises(InferenceClientError) as excinfo:
+            _execution(inference_client).result()
+
+        # assert
+        assert '500 Server Error' in str(excinfo.value)
+        assert str(excinfo.value).endswith(': model crashed: out of memory')
+
+    def test_result_before_completion_failed(self, inference_client):
+        # arrange
+        responses.add(
+            responses.GET, RESULT_URL, status=404, json={'msg': 'inference result not found'}
+        )
+
+        # act
+        with pytest.raises(InferenceClientError) as excinfo:
+            _execution(inference_client).result()
+
+        # assert
+        assert '404 Client Error' in str(excinfo.value)
+        assert 'inference result not found' in str(excinfo.value)
+
+    def test_request_long_error_body_failed(self, inference_client):
+        # arrange
+        responses.add(responses.POST, PREDICT_URL, status=500, body='x' * 1000)
+
+        # act
+        with pytest.raises(InferenceClientError) as excinfo:
+            inference_client.run_sync({'a': 1}, path='predict')
+
+        # assert
+        assert str(excinfo.value).endswith(': ' + 'x' * 500 + '...')
+
+    def test_request_empty_error_body_failed(self, inference_client):
+        # arrange
+        responses.add(responses.POST, PREDICT_URL, status=500, body='')
+
+        # act
+        with pytest.raises(InferenceClientError) as excinfo:
+            inference_client.run_sync({'a': 1}, path='predict')
+
+        # assert
+        assert str(excinfo.value).endswith(f'for url: {PREDICT_URL}')
+
     @pytest.mark.parametrize('entry_point', ['status_json', 'result'])
     def test_async_requests_client_timeout_successful(self, inference_client, entry_point):
         # arrange
