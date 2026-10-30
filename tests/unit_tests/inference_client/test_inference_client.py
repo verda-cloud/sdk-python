@@ -29,9 +29,52 @@ BASE_URL = 'https://inference.example.com/v1/my-deployment'
 VERBS = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options']
 
 
+PREDICT_URL = f'{BASE_URL}/predict'
+STATUS_URL = 'https://inference.example.com/v1/status/my-deployment'
+RESULT_URL = 'https://inference.example.com/v1/result/my-deployment'
+REDIRECT_URL = 'https://inference.example.com/v1/moved'
+MOVED_URL = f'{BASE_URL}/moved'
+EXECUTION_ID = 'exec-1'
+
+REDIRECT_STATUSES = [301, 302, 303, 307, 308]
+
+
+def _execution(client):
+    return AsyncInferenceExecution(client, EXECUTION_ID, AsyncStatus.Initialized)
+
+
+# (method, url the call sends to, call)
+ENTRY_POINTS = {
+    'run_sync': ('POST', PREDICT_URL, lambda c: c.run_sync({'a': 1}, path='predict')),
+    'run': ('POST', PREDICT_URL, lambda c: c.run({'a': 1}, path='predict')),
+    'run_no_response': (
+        'POST',
+        PREDICT_URL,
+        lambda c: c.run({'a': 1}, path='predict', no_response=True),
+    ),
+    'get': ('GET', PREDICT_URL, lambda c: c.get('predict')),
+    'post': ('POST', PREDICT_URL, lambda c: c.post('predict', json={'a': 1})),
+    'put': ('PUT', PREDICT_URL, lambda c: c.put('predict', json={'a': 1})),
+    'delete': ('DELETE', PREDICT_URL, lambda c: c.delete('predict')),
+    'patch': ('PATCH', PREDICT_URL, lambda c: c.patch('predict', json={'a': 1})),
+    'head': ('HEAD', PREDICT_URL, lambda c: c.head('predict')),
+    'options': ('OPTIONS', PREDICT_URL, lambda c: c.options('predict')),
+    'health': ('GET', f'{BASE_URL}/health', lambda c: c.health()),
+    'status_json': ('GET', STATUS_URL, lambda c: _execution(c).status_json()),
+    'result': ('GET', RESULT_URL, lambda c: _execution(c).result()),
+}
+
+
 @pytest.fixture
 def inference_client():
     return InferenceClient(inference_key='key-123', endpoint_base_url=BASE_URL)
+
+
+@pytest.fixture
+def following_client():
+    return InferenceClient(
+        inference_key='key-123', endpoint_base_url=BASE_URL, follow_redirects=True
+    )
 
 
 class TestBuildUrl:
@@ -243,42 +286,6 @@ class TestEndpointBaseUrl:
         assert inference_client.base_domain == 'https://inference.example.com/v1'
 
 
-PREDICT_URL = f'{BASE_URL}/predict'
-STATUS_URL = 'https://inference.example.com/v1/status/my-deployment'
-RESULT_URL = 'https://inference.example.com/v1/result/my-deployment'
-REDIRECT_URL = 'https://inference.example.com/v1/moved'
-MOVED_URL = f'{BASE_URL}/moved'
-EXECUTION_ID = 'exec-1'
-
-REDIRECT_STATUSES = [301, 302, 303, 307, 308]
-
-
-def _execution(client):
-    return AsyncInferenceExecution(client, EXECUTION_ID, AsyncStatus.Initialized)
-
-
-# (method, url the call sends to, call)
-ENTRY_POINTS = {
-    'run_sync': ('POST', PREDICT_URL, lambda c: c.run_sync({'a': 1}, path='predict')),
-    'run': ('POST', PREDICT_URL, lambda c: c.run({'a': 1}, path='predict')),
-    'run_no_response': (
-        'POST',
-        PREDICT_URL,
-        lambda c: c.run({'a': 1}, path='predict', no_response=True),
-    ),
-    'get': ('GET', PREDICT_URL, lambda c: c.get('predict')),
-    'post': ('POST', PREDICT_URL, lambda c: c.post('predict', json={'a': 1})),
-    'put': ('PUT', PREDICT_URL, lambda c: c.put('predict', json={'a': 1})),
-    'delete': ('DELETE', PREDICT_URL, lambda c: c.delete('predict')),
-    'patch': ('PATCH', PREDICT_URL, lambda c: c.patch('predict', json={'a': 1})),
-    'head': ('HEAD', PREDICT_URL, lambda c: c.head('predict')),
-    'options': ('OPTIONS', PREDICT_URL, lambda c: c.options('predict')),
-    'health': ('GET', f'{BASE_URL}/health', lambda c: c.health()),
-    'status_json': ('GET', STATUS_URL, lambda c: _execution(c).status_json()),
-    'result': ('GET', RESULT_URL, lambda c: _execution(c).result()),
-}
-
-
 class TestRedirectResponses:
     """A 3xx response is reported to the caller as an error."""
 
@@ -313,7 +320,7 @@ class TestRedirectResponses:
         # assert
         assert len(responses.calls) == 1
 
-    def test_session_returns_a_redirect_as_is(self, inference_client):
+    def test_session_redirect_returned_as_is_successful(self, inference_client):
         # arrange
         responses.add(responses.GET, PREDICT_URL, status=307, headers={'Location': REDIRECT_URL})
         responses.add(responses.GET, REDIRECT_URL, json={})
@@ -371,12 +378,28 @@ class TestRedirectResponses:
         # assert
         assert str(excinfo.value).endswith('redirects are not followed')
 
-
-@pytest.fixture
-def following_client():
-    return InferenceClient(
-        inference_key='key-123', endpoint_base_url=BASE_URL, follow_redirects=True
+    @pytest.mark.parametrize(
+        'location',
+        [
+            'https://[invalid',
+            'https://[invalid/v1/my-deployment/moved',
+            'https://inference.example.com:99999/v1/my-deployment/moved',
+        ],
     )
+    @pytest.mark.parametrize('follow_redirects', [False, True])
+    def test_request_redirect_malformed_location_failed(self, follow_redirects, location):
+        # arrange
+        client = InferenceClient(
+            inference_key='key-123', endpoint_base_url=BASE_URL, follow_redirects=follow_redirects
+        )
+        responses.add(responses.GET, PREDICT_URL, status=307, headers={'Location': location})
+
+        # act
+        with pytest.raises(InferenceClientError, match=r'redirect \(307\)'):
+            client.get('predict')
+
+        # assert
+        assert len(responses.calls) == 1
 
 
 class TestFollowRedirects:
@@ -543,7 +566,7 @@ class TestFollowRedirects:
         # assert
         assert len(responses.calls) == 1
 
-    def test_session_returns_a_redirect_outside_deployment_as_is(self, following_client):
+    def test_session_redirect_outside_deployment_returned_as_is_successful(self, following_client):
         # arrange
         responses.add(responses.GET, PREDICT_URL, status=307, headers={'Location': REDIRECT_URL})
         responses.add(responses.GET, REDIRECT_URL, json={})
@@ -629,7 +652,7 @@ class TestRequests:
         assert result == {'result': 'plain'}
 
     @pytest.mark.parametrize('entry_point', ['status_json', 'result'])
-    def test_async_requests_use_the_client_timeout(self, inference_client, entry_point):
+    def test_async_requests_client_timeout_successful(self, inference_client, entry_point):
         # arrange
         _, url, call = ENTRY_POINTS[entry_point]
         responses.add(responses.GET, url, json={'Status': 'Completed'})
@@ -651,7 +674,7 @@ class TestRequests:
             call(inference_client)
 
     @pytest.mark.parametrize('entry_point', ['status_json', 'result'])
-    def test_async_requests_timed_out(self, inference_client, entry_point):
+    def test_async_requests_timeout_failed(self, inference_client, entry_point):
         # arrange
         _, url, call = ENTRY_POINTS[entry_point]
         responses.add(responses.GET, url, body=requests.exceptions.ReadTimeout())

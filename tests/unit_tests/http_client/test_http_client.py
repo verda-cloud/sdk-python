@@ -519,7 +519,7 @@ class TestHttpClient:
         assert len(responses.calls) == 1
 
     @pytest.mark.parametrize('method', ['get', 'post', 'put', 'patch', 'delete'])
-    def test_request_methods_accept_allow_redirects_false(self, http_client, method):
+    def test_request_methods_allow_redirects_false_successful(self, http_client, method):
         # arrange
         url = http_client._base_url + '/test'
         responses.add(method.upper(), url, json={})
@@ -544,6 +544,7 @@ class TestHttpClient:
             getattr(http_client, method)('/test', allow_redirects=True)
 
         # assert
+        assert excinfo.value.code is None
         assert 'unexpected redirect (307)' in excinfo.value.message
         assert len(responses.calls) == 1
 
@@ -559,6 +560,7 @@ def test_handle_error_redirect_failed():
         handle_error(response)
 
     # assert
+    assert excinfo.value.code is None
     assert excinfo.value.message == (
         "unexpected redirect (302) to 'https://api.example.com/v1/moved'; redirects are not followed"
     )

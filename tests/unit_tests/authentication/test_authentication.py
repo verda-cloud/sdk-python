@@ -256,6 +256,7 @@ class TestAuthenticationService:
             authentication_service.authenticate()
 
         # assert
+        assert excinfo.value.code is None
         assert f'unexpected redirect ({status})' in excinfo.value.message
         assert len(responses.calls) == 1
 
@@ -273,5 +274,6 @@ class TestAuthenticationService:
             authentication_service.refresh()
 
         # assert
+        assert excinfo.value.code is None
         assert f'unexpected redirect ({status})' in excinfo.value.message
         assert len(responses.calls) == 1

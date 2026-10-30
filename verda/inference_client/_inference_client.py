@@ -151,6 +151,7 @@ def _is_inside_deployment(endpoint_base_url: str, response_url: str, location: s
     ``/<deployment>/%2E%2E/<other>``. The rest of the target path must pass the same
     check as ``path`` in ``_build_url``, which also refuses forms such as ``..;/`` and
     ``..%252f``. The query string is not checked: it does not change the target path.
+    A ``Location`` that cannot be parsed is not followed.
 
     Args:
         endpoint_base_url: The deployment's base url, without a trailing slash.
@@ -160,14 +161,17 @@ def _is_inside_deployment(endpoint_base_url: str, response_url: str, location: s
     Returns:
         True if the redirect may be followed.
     """
-    if has_relative_path_segment(urlsplit(location).path):
+    try:
+        if has_relative_path_segment(urlsplit(location).path):
+            return False
+        target = urljoin(response_url, location)
+        target_path = urlsplit(target).path
+    except ValueError:
         return False
-    target = urljoin(response_url, location)
     base_origin = _origin(endpoint_base_url)
     if base_origin is None or _origin(target) != base_origin:
         return False
     deployment_path = urlsplit(endpoint_base_url).path
-    target_path = urlsplit(target).path
     if target_path != deployment_path and not target_path.startswith(deployment_path + '/'):
         return False
     try:
@@ -188,12 +192,16 @@ def _trailing_slash_hint(response_url: str, location: str | None) -> str:
         location: The ``Location`` header value, if any.
 
     Returns:
-        The hint to append to the error message, or an empty string.
+        The hint to append to the error message, or an empty string. It is empty if
+        the ``Location`` cannot be parsed.
     """
     if not location:
         return ''
-    request_path = urlsplit(response_url).path
-    target_path = urlsplit(urljoin(response_url, location)).path
+    try:
+        request_path = urlsplit(response_url).path
+        target_path = urlsplit(urljoin(response_url, location)).path
+    except ValueError:
+        return ''
     stripped = target_path.rstrip('/')
     if not stripped or request_path.endswith('/') == target_path.endswith('/'):
         return ''
