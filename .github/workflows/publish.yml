@@ -1,0 +1,125 @@
+# .github/workflows/release.yml
+#
+# Replaces publish_verda.yml and publish_datacrunch.yml.
+# One build, one approval, verda published before datacrunch.
+#
+# Before merging:
+#   1. On PyPI, add a trusted publisher to BOTH projects (verda, datacrunch):
+#        repo verda-cloud/sdk-python, workflow release.yml, environment pypi
+#   2. After the first successful release: remove the old publishers from PyPI,
+#      delete the PYPI_USERNAME / PYPI_PASSWORD secrets and revoke that token on PyPI.
+
+name: Release
+
+on:
+  release:
+    types: [published]
+
+# No permissions by default; each job asks only for what it needs.
+permissions: {}
+
+# Never run two releases at the same time.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and smoke test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # no id-token here: nothing in this job can publish
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # don't leave a GitHub token in .git/config
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.11"
+          enable-cache: false # no cache in release builds (cache poisoning)
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Check release tag matches verda version
+        env:
+          TAG: ${{ github.event.release.tag_name }} # via env, never inline in the script
+        run: |
+          VERSION=$(uv version --short --package verda)
+          if [ "${TAG#v}" != "$VERSION" ]; then
+            echo "::error::Release tag '$TAG' does not match verda version '$VERSION'"
+            exit 1
+          fi
+
+      - name: Sync datacrunch version and dependency to verda
+        run: |
+          VERSION=$(uv version --short --package verda)
+          echo "Syncing datacrunch to verda==$VERSION"
+          uv version --package datacrunch "$VERSION"
+          uv add --package datacrunch "verda==$VERSION"
+          cat datacrunch_compat/pyproject.toml
+
+      - name: Build all packages
+        run: uv build --all-packages
+
+      - name: Smoke test verda (wheel)
+        run: uv run --isolated --no-project --with dist/verda-*.whl --with "responses==0.25.8" tests/smoke_verda.py
+
+      - name: Smoke test verda (sdist)
+        run: uv run --isolated --no-project --with dist/verda-*.tar.gz --with "responses==0.25.8" tests/smoke_verda.py
+
+      - name: Smoke test datacrunch (wheel)
+        run: uv run --isolated --no-project --with dist/datacrunch-*.whl --with dist/verda-*.whl --with "responses==0.25.8" datacrunch_compat/tests/smoke_datacrunch.py
+
+      - name: Smoke test datacrunch (sdist)
+        run: uv run --isolated --no-project --with dist/datacrunch-*.tar.gz --with dist/verda-*.tar.gz --with "responses==0.25.8" datacrunch_compat/tests/smoke_datacrunch.py
+
+      - name: Upload verda dists
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-verda
+          path: dist/verda-*
+          if-no-files-found: error
+
+      - name: Upload datacrunch dists
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-datacrunch
+          path: dist/datacrunch-*
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi # protected: required reviewers, tag rule
+      url: https://pypi.org/p/verda
+    permissions:
+      id-token: write # the only job that can mint a PyPI upload token
+    steps:
+      # No checkout, no build, no third-party code: just upload what `build` produced.
+      - name: Download verda dists
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-verda
+          path: dist-verda/
+
+      - name: Download datacrunch dists
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-datacrunch
+          path: dist-datacrunch/
+
+      # verda first: datacrunch pins verda==<same version>, so it must exist on PyPI first.
+      - name: Publish verda
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-verda/
+
+      - name: Publish datacrunch
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-datacrunch/
